@@ -1,0 +1,110 @@
+{
+  "theme": "DARK",
+  "archetype": "Hybrid 2 (Performance Pro / Tactical) & 5 (Luxury)",
+  "concept": "Command Center Navy/Gold - Military intelligence meets Ivy League institutional gravitas. High security, tactical precision, premium academic trust.",
+  "colors": {
+    "background": "#020617",
+    "surface": "#0F172A",
+    "surface_elevated": "#1E293B",
+    "primary": "#D4AF37",
+    "primary_hover": "#FDE047",
+    "text_primary": "#F8FAFC",
+    "text_secondary": "#94A3B8",
+    "border": "rgba(255,255,255,0.1)",
+    "accent_gold": "#D4AF37",
+    "accent_navy": "#0A1128",
+    "success": "#22C55E",
+    "warning": "#EAB308",
+    "error": "#EF4444"
+  },
+  "typography": {
+    "headings": {
+      "family": "Playfair Display, serif",
+      "weight": "font-bold",
+      "tracking": "tracking-tight",
+      "usage": "H1, H2 headers for institutional gravitas (Vault, Trust Dashboard)"
+    },
+    "body": {
+      "family": "Inter, sans-serif",
+      "weight": "font-normal",
+      "tracking": "tracking-normal",
+      "usage": "General readability, paragraphs, descriptions"
+    },
+    "technical": {
+      "family": "JetBrains Mono, monospace",
+      "weight": "font-medium",
+      "tracking": "tracking-widest",
+      "usage": "MFA codes, encryption status, time-stamps, legal footer, labels"
+    }
+  },
+  "spacing_and_layout": {
+    "strategy": "Mobile-First Tactical (Command Center)",
+    "container": "w-full max-w-md mx-auto min-h-screen relative overflow-hidden bg-[#020617]",
+    "grid": "grid-cols-1 gap-4",
+    "padding": "p-6",
+    "borderRadius": "rounded-sm (sharp, tactical feel, avoid excessive curves)",
+    "alignment": "Optical alignment, left-aligned data fields, centered CTAs for impact"
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-[#D4AF37] text-[#0A1128] font-bold uppercase tracking-widest rounded-sm px-6 py-4 hover:bg-[#FDE047] transition-all shadow-lg shadow-[#D4AF37]/20",
+      "secondary": "border border-[#D4AF37]/50 text-[#D4AF37] font-medium uppercase tracking-widest rounded-sm px-6 py-4 hover:bg-[#D4AF37]/10 transition-all",
+      "danger": "border border-red-500/50 text-red-500 hover:bg-red-500/10 rounded-sm px-6 py-4 uppercase tracking-widest font-mono text-sm"
+    },
+    "cards": {
+      "tactical": "bg-slate-900/80 backdrop-blur-md border border-slate-700/50 p-6 rounded-sm relative overflow-hidden"
+    },
+    "inputs": {
+      "default": "bg-slate-950 border border-slate-700 text-white rounded-sm px-4 py-3 focus:ring-1 focus:ring-[#D4AF37] focus:border-[#D4AF37] font-mono text-sm"
+    },
+    "badges": {
+      "verified": "bg-[#D4AF37]/10 border border-[#D4AF37] text-[#D4AF37] px-2 py-1 text-xs font-mono uppercase tracking-wider flex items-center gap-1 rounded-sm"
+    }
+  },
+  "motion_and_interactions": {
+    "page_transitions": "Subtle fade and slide up",
+    "mfa_scanning": "Framer motion infinite scanning line over military grid (Terminal overlay)",
+    "hover_states": "Crisp 1px border highlights or text color shifts, no bouncy spring animations",
+    "accessibility": "Respect prefers-reduced-motion"
+  },
+  "assets": {
+    "icons": {
+      "library": "@phosphor-icons/react",
+      "style": "duotone for headers/empty states, regular/thin for technical UI"
+    },
+    "images": [
+      {
+        "url": "https://static.prod-images.emergentagent.com/jobs/5d50ab59-b2b1-4ae9-8bd1-7d38f183a391/images/3a7a5fe1dc994fc9d457cebe840cc70f7999afd619f94d15e916df116376a787.png",
+        "category": "secure_gold_seal",
+        "description": "Gold seal/medallion for Trust Dashboard and Verified Student badges"
+      },
+      {
+        "url": "https://static.prod-images.emergentagent.com/jobs/5d50ab59-b2b1-4ae9-8bd1-7d38f183a391/images/743759ae9df1eb4ae6b25eecabb00595dab7a3c8e4d273b5d9cfe73ca58672ce.png",
+        "category": "tactical_navy_bg",
+        "description": "Dark tactical grid background for the MFA processing state and Security Dashboard"
+      },
+      {
+        "url": "https://static.prod-images.emergentagent.com/jobs/5d50ab59-b2b1-4ae9-8bd1-7d38f183a391/images/526e39afe9744f89f6c503dff2d941de6f19e4ba12ba585b7beee1f7f33d81db.png",
+        "category": "academic_watermark_bg",
+        "description": "Background texture for the Document Viewer / Secure Vault items"
+      },
+      {
+        "url": "https://images.pexels.com/photos/34929879/pexels-photo-34929879.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "category": "university_night_bg",
+        "description": "Dark moody university courtyard. Use as a heavily darkened/blurred background overlay for the Onboarding/Welcome screen."
+      }
+    ]
+  },
+  "page_specific_instructions": {
+    "header": "Sticky nav. Must feature EN/ES language toggle front and center. High contrast.",
+    "onboarding": "Use 'university_night_bg' with a heavy dark overlay (bg-[#020617]/85). Place 'secure_gold_seal' prominent. ID.me CTA must be massive, authoritative.",
+    "dashboard": "Bento grid using 'tactical' cards. Vault summary at top. Highlight 1-Tap Share.",
+    "ai_browser_agent": "Terminal-like UI. Enter credentials -> MFA wait screen. Use 'tactical_navy_bg' with monospace fonts. Show step-by-step progress with status dots.",
+    "document_viewer": "Display PDF/Document using 'academic_watermark_bg' texture. Overlay a 'Verified Student' watermark using the gold seal motif. Include self-destruct share CTA.",
+    "security_trust_dashboard": "Heavy monospace usage. Show encryption status (AES-256), recent activity logs, ID.me verified status. Feels like a military intelligence terminal.",
+    "footer": "Must state 'A Division of Brick Outdoor Living, Inc.' in small monospace uppercase font at the bottom of the main wrapper."
+  },
+  "testing": {
+    "attributes": "All interactive elements MUST include 'data-testid' (e.g., data-testid='id-me-login-btn', data-testid='lang-toggle-en')"
+  }
+}
