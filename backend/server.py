@@ -407,6 +407,10 @@ async def agent_complete(session_id: str):
 
     portal = BY_ID.get(session["portal"])
     if not portal:
+        # Discovery sessions persist their synthetic portal on the session
+        # doc so a worker restart between /start and /complete still resolves.
+        portal = session.get("synthetic_portal")
+    if not portal:
         raise HTTPException(400, "Portal definition missing")
     sample = portal["sample"]
 
@@ -485,8 +489,7 @@ async def discovery_start(payload: DiscoveryStartRequest):
     short = "".join(w[0] for w in name.split()[:3]).upper() or "DISCOVER"
     discover_id = "dsc_" + uuid.uuid4().hex[:10]
 
-    # Register the synthetic portal in the in-memory catalog for this run.
-    BY_ID[discover_id] = {
+    synthetic_portal = {
         "id": discover_id,
         "name": name,
         "short": short,
@@ -521,6 +524,10 @@ async def discovery_start(payload: DiscoveryStartRequest):
         },
     }
 
+    # Register in-process for fast lookup, and persist alongside the session
+    # so multi-worker deployments can still finalize the document later.
+    BY_ID[discover_id] = synthetic_portal
+
     session_id = gen_id("ses_")
     await db.agent_sessions.insert_one({
         "session_id": session_id,
@@ -531,6 +538,7 @@ async def discovery_start(payload: DiscoveryStartRequest):
         "stage": "awaiting_mfa",
         "mfa_method": "duo_push",
         "discovery_mode": True,
+        "synthetic_portal": synthetic_portal,
         "started_at": utcnow_iso(),
         "steps": [
             {"label": "Initialize secure browser", "status": "complete"},
