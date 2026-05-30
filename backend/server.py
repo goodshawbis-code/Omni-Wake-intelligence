@@ -3,7 +3,7 @@ A Division of Brick Outdoor Living, Inc.
 
 High-security academic credential management.
 """
-from fastapi import FastAPI, APIRouter, HTTPException, Header
+from fastapi import FastAPI, APIRouter, HTTPException, Header, Query
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -17,6 +17,14 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
 import uuid
 from datetime import datetime, timezone, timedelta
+
+from portal_catalog import (
+    CATALOG,
+    BY_ID,
+    CATEGORIES,
+    REGIONS,
+    search as catalog_search,
+)
 
 
 ROOT_DIR = Path(__file__).parent
@@ -217,86 +225,67 @@ async def idme_verify(payload: IDMeVerifyRequest):
 
 # ====================== AI BROWSER AGENT ======================
 
-PORTAL_CATALOG = {
-    "uapb": {
-        "name": "University of Arkansas at Pine Bluff",
-        "short": "UAPB",
-        "color": "#D4AF37",
-        "mfa_method": "duo_push",
-        "url": "https://portal.uapb.edu",
-        "mascot": "Golden Lions",
-        "sample": {
-            "doc_type": "Unofficial Transcript",
-            "institution": "University of Arkansas at Pine Bluff",
-            "gpa": "3.72",
-            "credits": "98",
-            "lines": [
-                "FALL 2023 — Semester GPA: 3.80",
-                "BIOL 2014  General Biology II        4.00  A",
-                "MATH 2204  Calculus I                4.00  A-",
-                "HIST 2003  African American History  3.00  A",
-                "ENGL 2003  World Literature          3.00  B+",
-                "SPRING 2024 — Semester GPA: 3.65",
-                "BIOL 3024  Genetics                  4.00  B+",
-                "CHEM 3034  Organic Chemistry I       4.00  A-",
-                "POLS 2003  American Government       3.00  A",
-                "MUSC 1003  Marching Band             1.00  A",
-                "FALL 2024 — Semester GPA: 3.70",
-                "BIOL 4014  Cell Biology              4.00  A",
-                "CHEM 3044  Organic Chemistry II      4.00  A-",
-                "PSYC 2003  General Psychology        3.00  A",
-                "HONR 3001  Honors Seminar            1.00  A",
-            ],
-        },
-    },
-    "csun": {
-        "name": "California State University, Northridge",
-        "short": "CSUN",
-        "color": "#C8102E",
-        "mfa_method": "sms_code",
-        "url": "https://my.csun.edu",
-        "mascot": "Matadors",
-        "sample": {
-            "doc_type": "Unofficial Transcript",
-            "institution": "California State University, Northridge",
-            "gpa": "3.81",
-            "credits": "112",
-            "lines": [
-                "FALL 2023 — Term GPA: 3.85",
-                "COMP 110  Intro to Algorithms        3.00  A",
-                "MATH 150A Calculus I                 3.00  A",
-                "ENGL 113A Approaches to Literature   3.00  A-",
-                "CHS 245   Chicano Heritage           3.00  A",
-                "SPRING 2024 — Term GPA: 3.78",
-                "COMP 122  Computer Architecture      3.00  A-",
-                "MATH 150B Calculus II                3.00  A",
-                "PHIL 230  Ethics                     3.00  A",
-                "PHYS 220A Mechanics                  4.00  B+",
-                "FALL 2024 — Term GPA: 3.80",
-                "COMP 282  Advanced Data Structures   3.00  A",
-                "COMP 256  Discrete Structures        3.00  A-",
-                "ENGR 280  Computer Engineering Lab   2.00  A",
-                "ART 110   World Arts                 3.00  A",
-            ],
-        },
-    },
-}
+
+def _portal_view(p: dict) -> dict:
+    """Public projection — never leak the transcript fixture."""
+    return {
+        "id": p["id"],
+        "name": p["name"],
+        "short": p["short"],
+        "color": p["color"],
+        "url": p["url"],
+        "mfa_method": p["mfa_method"],
+        "mascot": p["mascot"],
+        "region": p["region"],
+        "category": p["category"],
+        "accreditor": p["accreditor"],
+        "ipeds_id": p.get("ipeds_id"),
+    }
 
 
 @api_router.get("/agent/portals")
 async def list_portals():
-    return [
-        {
-            "id": k,
-            "name": v["name"],
-            "short": v["short"],
-            "color": v["color"],
-            "url": v["url"],
-            "mfa_method": v["mfa_method"],
-            "mascot": v["mascot"],
-        }
-        for k, v in PORTAL_CATALOG.items()
+    """Featured portals (top 8) for the dashboard quick-pick."""
+    featured_ids = [
+        "uapb", "csun", "harvard", "ucla", "mit", "howard", "umich", "nyu",
     ]
+    return [_portal_view(BY_ID[i]) for i in featured_ids if i in BY_ID]
+
+
+@api_router.get("/agent/portals/search")
+async def search_portals(
+    q: Optional[str] = Query(None, description="Free-text query"),
+    region: Optional[str] = Query(None, description="US | INTL"),
+    category: Optional[str] = Query(None, description="ivy_league | hbcu | ..."),
+    limit: int = Query(40, ge=1, le=200),
+):
+    """Universal Search across the catalog.
+    Mirrors the schema of NCES IPEDS so a one-time loader can lift this from
+    ~110 hand-curated rows up to the full ~6,500 accredited US institutions
+    without touching the API contract."""
+    rows = catalog_search(q, region, category, limit)
+    return {
+        "total": len(rows),
+        "results": [_portal_view(p) for p in rows],
+    }
+
+
+@api_router.get("/agent/portals/meta")
+async def portal_meta():
+    return {
+        "catalog_size": len(CATALOG),
+        "categories": CATEGORIES,
+        "regions": REGIONS,
+        "source": "IPEDS-aligned seed catalog (NCES UnitID where available)",
+    }
+
+
+@api_router.get("/agent/portal/{portal_id}")
+async def get_portal(portal_id: str):
+    p = BY_ID.get(portal_id)
+    if not p:
+        raise HTTPException(404, "Portal not found")
+    return _portal_view(p)
 
 
 @api_router.post("/agent/start")
@@ -304,7 +293,8 @@ async def agent_start(payload: AgentStartRequest):
     """Kick off the AI browser liaison session.
     The agent navigates to the portal, submits creds, then waits at MFA gate.
     """
-    if payload.portal not in PORTAL_CATALOG:
+    portal = BY_ID.get(payload.portal)
+    if not portal:
         raise HTTPException(400, "Unsupported portal")
     if not payload.username or not payload.password:
         raise HTTPException(400, "Credentials required")
@@ -313,7 +303,6 @@ async def agent_start(payload: AgentStartRequest):
     if not user:
         raise HTTPException(404, "User not found")
 
-    portal = PORTAL_CATALOG[payload.portal]
     session_id = gen_id("ses_")
 
     await db.agent_sessions.insert_one({
@@ -324,6 +313,7 @@ async def agent_start(payload: AgentStartRequest):
         "username": payload.username,
         "stage": "awaiting_mfa",
         "mfa_method": portal["mfa_method"],
+        "discovery_mode": False,
         "started_at": utcnow_iso(),
         "steps": [
             {"label": "Initialize secure browser", "status": "complete"},
@@ -415,7 +405,9 @@ async def agent_complete(session_id: str):
     if not user:
         raise HTTPException(404, "User not found")
 
-    portal = PORTAL_CATALOG[session["portal"]]
+    portal = BY_ID.get(session["portal"])
+    if not portal:
+        raise HTTPException(400, "Portal definition missing")
     sample = portal["sample"]
 
     student_name = user.get("id_me_full_name") or "STUDENT NAME"
@@ -431,10 +423,11 @@ async def agent_complete(session_id: str):
         "student_name": student_name,
         "gpa": sample["gpa"],
         "credits": sample["credits"],
-        "institution": sample["institution"],
+        "institution": sample.get("institution") or portal["name"],
         "retrieved_at": utcnow_iso(),
         "verified_watermark": bool(user.get("id_me_verified")),
         "encrypted": True,
+        "discovery_mode": bool(session.get("discovery_mode")),
         "content_lines": sample["lines"],
     }
     await db.documents.insert_one(document.copy())
@@ -448,13 +441,125 @@ async def agent_complete(session_id: str):
         {"$set": {"stage": "complete", "steps": steps, "document_id": doc_id}},
     )
 
+    mode_tag = "AI DISCOVERY" if session.get("discovery_mode") else "AES-256"
     await log_activity(
         session["user_id"],
         "DOCUMENT_RETRIEVED",
-        f"{portal['short']} transcript secured (AES-256)",
+        f"{portal['short']} transcript secured ({mode_tag})",
     )
 
     return {"status": "complete", "document_id": doc_id}
+
+
+# -------- AI DISCOVERY MODE --------
+
+class DiscoveryStartRequest(BaseModel):
+    user_id: str
+    school_name: str
+    portal_url: Optional[str] = None
+    username: str
+    password: str
+
+
+@api_router.post("/agent/discovery/start")
+async def discovery_start(payload: DiscoveryStartRequest):
+    """Kick off an AI Discovery session for a school that isn't pre-mapped.
+
+    In production the agent would crawl the SSO landing page, enumerate
+    candidate links, and use an LLM to score "transcript page" matches. For
+    this MVP we expose the full UX (8-step crawl with discovery telemetry)
+    against a synthetic catalog entry the user named — clearly flagged as
+    `discovery_mode: True` everywhere it appears.
+    """
+    if not payload.school_name.strip():
+        raise HTTPException(400, "School name required")
+    if not payload.username or not payload.password:
+        raise HTTPException(400, "Credentials required")
+
+    user = await db.users.find_one({"user_id": payload.user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    # Generate a transient portal id so the rest of the pipeline still works.
+    name = payload.school_name.strip()
+    short = "".join(w[0] for w in name.split()[:3]).upper() or "DISCOVER"
+    discover_id = "dsc_" + uuid.uuid4().hex[:10]
+
+    # Register the synthetic portal in the in-memory catalog for this run.
+    BY_ID[discover_id] = {
+        "id": discover_id,
+        "name": name,
+        "short": short,
+        "color": "#D4AF37",
+        "url": payload.portal_url or f"https://discovery.oct/{discover_id}",
+        "mfa_method": "duo_push",
+        "mascot": "Discovery",
+        "region": "US",
+        "category": "public_flagship",
+        "accreditor": "Pending (Discovery)",
+        "ipeds_id": None,
+        "sample": {
+            "doc_type": "Unofficial Transcript",
+            "institution": name,
+            "gpa": "3.76",
+            "credits": "102",
+            "lines": [
+                "DISCOVERED VIA AI EXPLORATION",
+                "FALL 2023 — Term GPA: 3.80",
+                "GE 1001  Foundations of Inquiry         3.00  A",
+                "MATH 1100  Calculus I                    4.00  A-",
+                "ENGL 1010  Writing & Rhetoric            3.00  A",
+                "SPRING 2024 — Term GPA: 3.72",
+                "GE 2001  Civic Engagement                3.00  A",
+                "BIOL 1011  Biology I                     4.00  A-",
+                "ECON 2010  Microeconomics                3.00  A",
+                "FALL 2024 — Term GPA: 3.76",
+                "MAJ 3050  Methods Seminar                3.00  A",
+                "MAJ 3200  Advanced Topics                3.00  A-",
+                "ELEC 2200  Elective                      3.00  A",
+            ],
+        },
+    }
+
+    session_id = gen_id("ses_")
+    await db.agent_sessions.insert_one({
+        "session_id": session_id,
+        "user_id": payload.user_id,
+        "portal": discover_id,
+        "portal_name": name,
+        "username": payload.username,
+        "stage": "awaiting_mfa",
+        "mfa_method": "duo_push",
+        "discovery_mode": True,
+        "started_at": utcnow_iso(),
+        "steps": [
+            {"label": "Initialize secure browser", "status": "complete"},
+            {"label": f"Resolve SSO entry for {short}", "status": "complete"},
+            {"label": "AI: enumerate portal link graph", "status": "complete"},
+            {"label": "AI: score 'transcript' candidates", "status": "complete"},
+            {"label": "Submit credentials", "status": "complete"},
+            {"label": "Awaiting MFA approval", "status": "active"},
+            {"label": "Navigate to AI-selected transcript page", "status": "pending"},
+            {"label": "Download unofficial transcript", "status": "pending"},
+            {"label": "Encrypt & vault document", "status": "pending"},
+        ],
+    })
+
+    await log_activity(
+        payload.user_id,
+        "DISCOVERY_STARTED",
+        f"AI Discovery engaged for '{name}'",
+    )
+
+    return {
+        "session_id": session_id,
+        "portal_id": discover_id,
+        "stage": "awaiting_mfa",
+        "mfa_method": "duo_push",
+        "portal_name": name,
+        "portal_short": short,
+        "discovery_mode": True,
+    }
 
 
 # ====================== VAULT ======================

@@ -195,6 +195,51 @@ export const STRINGS = {
   tabVault: { en: "Vault", es: "Bóveda" },
   tabSecurity: { en: "Security", es: "Seguridad" },
   tabSettings: { en: "Settings", es: "Ajustes" },
+
+  // Universal Search + Discovery
+  universalSearch: {
+    en: "Universal School Search",
+    es: "Búsqueda Universal de Escuelas",
+  },
+  searchHint: {
+    en: "104 schools mapped • US + International • IPEDS-aligned",
+    es: "104 escuelas mapeadas • EE.UU. + Internacional • alineado con IPEDS",
+  },
+  searchPlaceholder: {
+    en: "Search by name, mascot, or acronym…",
+    es: "Buscar por nombre, mascota o sigla…",
+  },
+  noResults: {
+    en: "No mapped school matches that name.",
+    es: "Ninguna escuela mapeada coincide con ese nombre.",
+  },
+  cantFind: { en: "Can't find your school?", es: "¿No encuentras tu escuela?" },
+  launchDiscovery: {
+    en: "Launch AI Discovery Mode",
+    es: "Iniciar Modo Descubrimiento IA",
+  },
+  discoveryTitle: { en: "AI Discovery Mode", es: "Modo Descubrimiento IA" },
+  discoverySub: {
+    en: "If your school isn't mapped, the AI agent will explore the portal structure in real-time to locate the transcript page.",
+    es: "Si tu escuela no está mapeada, el agente IA explorará la estructura del portal en tiempo real para localizar la página del expediente.",
+  },
+  schoolName: { en: "School Name", es: "Nombre de la Escuela" },
+  schoolNamePh: {
+    en: "e.g. Reed College",
+    es: "ej. Universidad Reed",
+  },
+  portalUrlOptional: {
+    en: "Portal URL (optional)",
+    es: "URL del Portal (opcional)",
+  },
+  beginDiscovery: { en: "Begin Discovery", es: "Iniciar Descubrimiento" },
+  filterAll: { en: "All", es: "Todas" },
+  filterUS: { en: "US", es: "EE.UU." },
+  filterINTL: { en: "International", es: "Internacional" },
+  discoveredBadge: {
+    en: "DISCOVERED VIA AI",
+    es: "DESCUBIERTO POR IA",
+  },
 } as const;
 
 export type StringKey = keyof typeof STRINGS;

@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration-2 expansion (Universal Search + AI Discovery Mode) verified end-to-end. Backend suite (16 NEW tests in test_expansion_universal_search.py) 100% pass — /agent/portals/meta (catalog_size=104, IPEDS source, US+INTL, ivy_league/hbcu/study_abroad), /agent/portals/search (q=harvard total=1, q=tokyo INTL, q=stanford private_research, category=hbcu returns 13 incl UAPB/Howard/Spelman, region=INTL filters to international only, limit=60 returns 60 across multiple categories), /agent/portal/{id} (200 + 404), featured /agent/portals (8 marquee incl UAPB+CSUN), /agent/discovery/start (400 on empty school, 404 on unknown user, happy path returns dsc_* portal_id + stage=awaiting_mfa + mfa_method=duo_push), full Discovery → MFA(duo_push) → complete pipeline produces document with discovery_mode=true + verified_watermark=true. UAPB Duo and CSUN SMS regressions still pass. Frontend mobile (390x844): /agent/portal renders Universal Search field, ALL/US/INTERNATIONAL chips, '104 schools mapped' subtitle, '60/104' counter, Ivy-League-first grouped sections (IVY LEAGUE • 8 header, Harvard/Yale/Princeton/Columbia/Penn cards with brand-colored crests, mascot + DUO PUSH line, lock-prefixed URL). 'harvard' debounce filter narrows to Harvard (Yale gone), clear restores list. INTERNATIONAL chip shows Oxford/Tokyo/McGill and hides Harvard. 'xyzqqq' triggers empty state with 'No mapped school matches that name.' + LAUNCH AI DISCOVERY MODE button (empty-discovery-btn). Bottom discovery-cta-btn navigates to /agent/discovery. /agent/discovery renders planet icon, 'EXPLORATION MODE • UNMAPPED' tag, all 4 fields (school/url/username/password), BEGIN DISCOVERY disabled until school+creds filled, submit navigates to /agent/mfa?method=duo_push. Spanish toggle: portal flips to 'Búsqueda Universal de Escuelas'; discovery flips to 'Modo Descubrimiento IA' / 'NOMBRE DE LA ESCUELA' / 'CONTRASEÑA' / 'INICIAR DESCUBRIMIENTO' (visually confirmed).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/agent/discovery/start", "issue": "Empty school_name check uses .strip() truthiness which returns 400 only when school_name is whitespace-only; if 'school_name' key is omitted entirely Pydantic raises 422. Spec wording 'rejects empty school_name (400)' is met for the documented case."},
+      {"endpoint": "POST /api/agent/discovery/start", "issue": "Synthetic portal entries are stored in the in-memory BY_ID dict (process-scoped). Multiple workers / reloads will lose the dsc_* entry between /start and /complete. Acceptable for single-worker MVP but worth flagging."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "global", "issues": ["Pre-existing react-native-web warnings still present: shadow* style props deprecated, Image style.resizeMode deprecated (carry-over from iteration 1, non-blocking)."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_expansion_universal_search.py",
+    "/app/test_reports/pytest/pytest_results_iter2.xml"
+  ],
+  "action_items": [
+    "(carry-over from iter 1) Migrate shadow* → boxShadow and Image style.resizeMode → props.resizeMode across portal.tsx/discovery.tsx (the new screens inherited the same RNW deprecation warnings).",
+    "Consider persisting discovery_mode synthetic portal entries to MongoDB (or embedding into the agent_sessions doc) so the /complete step survives a backend restart between /start and /complete."
+  ],
+  "critical_code_review_comments": [
+    "portal_catalog.py is clean, well-documented and IPEDS-aligned. _norm() does simple substring matching — fine for 104 rows; will need fuzzy matching when expanded to ~6.5k schools.",
+    "search() endpoint returns {total, results} with total tied to the slice (len(out[:limit])), not the unbounded match count. UI uses 'X / 104' anyway, but if pagination is later added, expose true match count separately.",
+    "Discovery synthetic portal is registered into the global BY_ID at /start time; this is process-local mutable state. For horizontal scale move into Mongo."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_expansion_universal_search.py (new — 16 pytest cases for the expansion surface)"
+  ],
+  "success_rate": {"backend": "100% (16/16 expansion tests)", "frontend": "100% of the new expansion flows tested (Universal Search render + filter + debounce + clear + INTL filter + empty state + CTA navigation, Discovery render + 4 fields + disabled-until-filled + submit → /agent/mfa, Spanish toggle on both screens)."},
+  "seed_data_creation": "Per-test ephemeral users (device_id prefixed TEST_exp_/TEST_ui_). Each test user is bootstrapped and ID.me-verified via API before UI navigation. Discovery sessions create dsc_* transient portals + one transcript doc per pipeline run — not cleaned up but isolated per user_id.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Frontend uses EXPO_PUBLIC_BACKEND_URL (not EXPO_BACKEND_URL). The mobile preview seeds device_id into localStorage via 'oct_device_id'/'oct_user_id' keys. To skip ID.me on the UI, POST /api/users/bootstrap then /api/idme/verify with the resulting user_id BEFORE visiting any /agent/* route. Filter chips are testID 'filter-all' / 'filter-us' / 'filter-international'. Discovery uses 'begin-discovery-btn' which is disabled until school_name + username + password are filled. The bottom 'Launch AI Discovery Mode' CTA on the portal page is 'discovery-cta-btn'; the inline one inside the empty-results card is 'empty-discovery-btn'.",
+  "rca_of_issue": "No production bugs. The only architectural note worth surfacing is that the AI Discovery synthetic portal is stored in an in-process dict (BY_ID) at /agent/discovery/start time and consumed by /agent/complete/{session_id}. This is fine for the current single-worker uvicorn dev setup but will break under multi-worker deployments — recommend persisting the synthetic catalog entry inside the agent_sessions Mongo document and reading from there in /complete."
+}
