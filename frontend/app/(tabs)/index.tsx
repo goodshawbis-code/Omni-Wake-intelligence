@@ -270,6 +270,13 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginTop: 2,
   },
+  identitySub: {
+    color: COLORS.textSecondary,
+    fontFamily: "Courier",
+    fontSize: 10,
+    letterSpacing: 1.5,
+    marginTop: 4,
+  },
   statusDot: {
     width: 10,
     height: 10,

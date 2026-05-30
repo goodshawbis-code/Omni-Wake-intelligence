@@ -13,8 +13,7 @@ import { COLORS, SPACING } from "@/src/theme/colors";
 export default function Settings() {
   const { user, lang, setBiometric, signOut } = useApp();
 
-  function confirmSignOut() {
-    Alert.alert(
+  function confirmSignOut() {    Alert.alert(
       t("signOut", lang),
       t("confirmSignOut", lang),
       [
@@ -156,6 +155,15 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+  principalHeader: { display: "none" },
+  principalBadge: { display: "none" },
+  principalName: { display: "none" },
+  principalRank: { display: "none" },
+  principalChip: { display: "none" },
+  principalChipTxt: { display: "none" },
+  pRow: { display: "none" },
+  pRowLabel: { display: "none" },
+  pRowValue: { display: "none" },
   tag: {
     color: COLORS.primary,
     fontFamily: "Courier",
