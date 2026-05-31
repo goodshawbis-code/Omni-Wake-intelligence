@@ -109,7 +109,7 @@ export default function KernelConsole() {
           <View style={styles.divCol} />
           <Stat label={t("kernelTotalIssues", lang)} value={String(stats.total)} />
           <View style={styles.divCol} />
-          <Stat label="MODEL" value={stats.model.split("/")[1].slice(0, 14)} />
+          <Stat label="MODEL" value={(stats.model.split("/")[1] || stats.model).slice(0, 18)} />
         </View>
       )}
       {stats && !stats.llm_configured && (
