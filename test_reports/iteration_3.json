@@ -1,0 +1,43 @@
+{
+  "summary": "Phase 1 Vault Sprint smoke-test PASSED. Backend (32/32 pytest, 0 regressions): all prior One Click Transcript endpoints healthy after app.json + eas.json updates — POST /api/users/bootstrap (returns usr_, no _id, idempotent on device_id), POST /api/users/settings toggling biometric_lock=true, POST /api/idme/verify (mock OIDC, sets id_me_verified=true + id_me_verified_at), GET /api/agent/portals (UAPB duo_push + CSUN sms_code present), GET /api/agent/portals/meta (catalog_size=104), GET /api/agent/portals/search?q=harvard&limit=10 (returns Harvard), POST /api/agent/start (UAPB happy path → awaiting_mfa), POST /api/agent/mfa (Duo + SMS), POST /api/agent/complete (encrypted+verified_watermark doc), full Discovery start→mfa→complete pipeline, GET /api/vault/{user_id} lists docs, POST /api/share/create then GET /api/share/view/{token} once → 200 then second view → 410 Gone, DELETE /api/share/{share_id} → subsequent view 410, GET /api/security/dashboard/{user_id} (AES-256-GCM, Secure Enclave, recent_activity desc by ts). Frontend (390x844 mobile preview): app loads on http://localhost:3000 with NO runtime/metro errors after the introduction of expo-local-authentication + expo-auth-session + expo-secure-store. Landing screen renders (CLASSIFIED • TIER-1 IDENTITY, 'Verified Student. Secured Vault.', VERIFY WITH ID.ME + I'M ALREADY VERIFIED buttons + AES-256 / ID.ME / FERPA badges). Vault tab renders 'Academic Vault' empty state with RETRIEVE TRANSCRIPT button (testID empty-retrieve). Settings shows the Biometric Lock row with testID biometric-switch — toggling it ON updates user.biometric_lock=true (POST /api/users/settings 200). Re-visiting the Vault tab with lock ON renders the yellow non-blocking banner with testID biometric-unavailable-banner and copy 'Biometric lock active in native builds only. Vault is open on web preview.', while vault-screen + empty-retrieve content remains rendered below the banner. Toggling biometric_lock OFF removes the banner (no longer in DOM) — BiometricGate behaves exactly as specified for the web preview. The new security files (/app/frontend/src/security/biometric.ts, vaultKey.ts, idme.ts and /app/frontend/src/components/BiometricGate.tsx) produced ZERO new console/metro errors. ID.me production OIDC module is correctly inactive — EXPO_PUBLIC_IDME_CLIENT_ID is absent so isProductionConfigured() returns false and the mock bridge stays in use (per spec).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/share/{token}", "issue": "Review request lists the share-view route as 'GET /api/share/{token}', but the implementation (and prior iterations) use 'GET /api/share/view/{token}'. No regression — wording mismatch only. Tested under the actual route and it returns 200 on first call and 410 Gone after max_views is exhausted."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "global", "issues": ["Carry-over react-native-web deprecation warnings still present: 'shadow*' style props, Image style.resizeMode, and now 'props.pointerEvents is deprecated, use style.pointerEvents' (the last one is newly visible on tab nav screens — likely from @react-navigation/bottom-tabs internals, non-blocking)."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_one_click_transcript.py",
+    "/app/backend/tests/test_expansion_universal_search.py",
+    "/app/test_reports/pytest/pytest_results_iter3.xml"
+  ],
+  "action_items": [
+    "(Carry-over from iter 1 & 2) Migrate 'shadow*' → boxShadow and Image style.resizeMode → props.resizeMode across the styled components. Also migrate any in-tree usage of props.pointerEvents → style.pointerEvents (new warning surfaced this iteration). All three warnings are non-blocking but worth a single cleanup pass.",
+    "Optional: align documentation (review-request wording) so the share-view route is consistently called 'GET /api/share/view/{token}' — the route works, only the spec text says '/api/share/{token}'."
+  ],
+  "critical_code_review_comments": [
+    "BiometricGate.tsx correctly degrades on web: Platform.OS === 'web' short-circuits to {available:false, enrolled:false} and the banner branch (lines 66-80) renders the warning chip + children. Native lock-screen UI is gated behind status.available && status.enrolled which can only be true on a real device — safe.",
+    "biometric.ts maps LocalAuth.AuthenticationType enum values to readable names (FACE_ID/FINGERPRINT/IRIS) and surfaces a reason string so the gate can explain itself — clean.",
+    "vaultKey.ts: getVaultKey() lazily generates a 256-bit key via expo-crypto's getRandomBytesAsync and persists through the storage.secureSet helper (expo-secure-store on native, AsyncStorage fallback on web). The btoa shim is defensive but slightly over-engineered — typeof btoa === 'function' is true on RN 0.81+ via the JS engine polyfill, so the manual base64 loop is dead code on every platform we ship. Not a bug, just trimmable.",
+    "idme.ts correctly hard-codes sandbox + production OIDC endpoints, gates the entire flow behind isProductionConfigured(), and throws a descriptive error if called without a client id. Good defense-in-depth — the mock bridge keeps the build green even with the variable unset.",
+    "eas.json carries EXPO_PUBLIC_IDME_ENV per profile but no EXPO_PUBLIC_IDME_CLIENT_ID anywhere yet (intentional per the brief). When the real client id ships, drop it into the preview + production env blocks and isProductionConfigured() flips on automatically.",
+    "app.json adds NSFaceIDUsageDescription, USE_BIOMETRIC/USE_FINGERPRINT Android permissions, and the expo-local-authentication + expo-secure-store plugins. Bundle identifier (com.brickoutdoorliving.oneclicktranscript) is consistent across iOS + Android. Scheme 'oneclicktranscript' matches the AuthSession redirect URI in idme.ts."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_one_click_transcript.py (one-line fix: the 'unknown portal 400' regression used 'yale' which iter2 added to the catalog — switched to 'not_a_real_portal_xyz' so the test continues to assert the negative case)"
+  ],
+  "success_rate": {"backend": "100% (32/32 — 16 core + 16 expansion)", "frontend": "100% of the Vault Sprint flows tested (app load, Vault empty state, Settings biometric toggle ON, banner appears on Vault, vault content still rendered below banner, banner disappears when toggled OFF, no new console errors from biometric.ts / vaultKey.ts / idme.ts / BiometricGate.tsx)."},
+  "seed_data_creation": "Per-run ephemeral TEST_iter3_<ts> device + usr_ user bootstrapped + ID.me-verified via API for the UI walk-through. AppContext on the web preview re-bootstraps under its own dev_<random> device key, which is independent and doesn't affect the BiometricGate flow under test. Pytest fixtures also create per-module TEST_device_<ms> users — isolated, no cleanup needed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Frontend uses EXPO_PUBLIC_BACKEND_URL (https://verified-transcript.preview.emergentagent.com). On the web preview, expo-local-authentication is unavailable by design — BiometricGate renders a non-blocking yellow banner (testID 'biometric-unavailable-banner') and passes children through. To exercise the banner, POST /api/users/settings with biometric_lock=true on the AppContext-bootstrapped user (its device_id is in localStorage under 'oct_device_id') OR toggle the Settings switch (testID 'biometric-switch'). Native biometric prompts cannot be tested in this environment — do NOT attempt. ID.me OIDC module is dormant until EXPO_PUBLIC_IDME_CLIENT_ID is populated in eas.json; the existing mock bridge form stays active. Share endpoint is actually 'GET /api/share/view/{token}' not '/api/share/{token}'.",
+  "rca_of_issue": "No production bugs found. One stale test (the iter-1 'unknown portal' negative case used 'yale' which iter-2 added to the universal catalog, so 'yale' now returns 200) was updated to use a clearly synthetic portal id. The new security layer (BiometricGate + biometric.ts + vaultKey.ts + idme.ts) integrates cleanly with the existing AppContext + ScreenShell stack — no console errors, no metro bundle errors, no runtime exceptions, and the web-preview fallback (non-blocking banner) renders exactly as designed."
+}

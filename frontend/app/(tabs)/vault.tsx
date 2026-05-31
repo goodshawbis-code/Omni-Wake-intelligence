@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import ScreenShell from "@/src/components/ScreenShell";
 import LangToggle from "@/src/components/LangToggle";
 import Btn from "@/src/components/Btn";
+import BiometricGate from "@/src/components/BiometricGate";
 import { useApp } from "@/src/context/AppContext";
 import { t } from "@/src/i18n/translations";
 import { COLORS, SPACING } from "@/src/theme/colors";
@@ -58,7 +59,8 @@ export default function VaultScreen() {
 
   return (
     <ScreenShell testID="vault-screen">
-      <View style={styles.header}>
+      <BiometricGate>
+        <View style={styles.header}>
         <View>
           <Text style={styles.tag}>⬢ {t("encryption", lang).toUpperCase()} AES-256-GCM</Text>
           <Text style={styles.title}>{t("vaultTitle", lang)}</Text>
@@ -153,6 +155,7 @@ export default function VaultScreen() {
           ) : null
         }
       />
+      </BiometricGate>
     </ScreenShell>
   );
 }

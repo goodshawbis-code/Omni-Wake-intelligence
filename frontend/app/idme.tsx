@@ -21,6 +21,7 @@ import { useApp } from "@/src/context/AppContext";
 import { t } from "@/src/i18n/translations";
 import { COLORS, SPACING } from "@/src/theme/colors";
 import { api } from "@/src/api/client";
+import { isProductionConfigured, runIdMeOIDC } from "@/src/security/idme";
 
 const GOLD_SEAL =
   "https://static.prod-images.emergentagent.com/jobs/5d50ab59-b2b1-4ae9-8bd1-7d38f183a391/images/3a7a5fe1dc994fc9d457cebe840cc70f7999afd619f94d15e916df116376a787.png";
@@ -49,6 +50,41 @@ export default function IDMeBridge() {
       setUser(res.user);
       setStage("done");
     } else {
+      setStage("form");
+    }
+  }
+
+  // Production OIDC: launches the real ID.me Authorization Code + PKCE flow
+  // when EXPO_PUBLIC_IDME_CLIENT_ID is set in the build environment. The
+  // resulting claims are POSTed to the existing /api/idme/verify endpoint
+  // which still owns the server-side id_token validation.
+  async function submitProduction() {
+    if (!user) return;
+    setStage("verifying");
+    try {
+      const claims = await runIdMeOIDC();
+      if (!claims) {
+        setStage("form");
+        return;
+      }
+      setName(claims.full_name);
+      setEmail(claims.student_email);
+      const res = await api.post<{ verified_at: string; user: any }>(
+        "/idme/verify",
+        {
+          user_id: user.user_id,
+          full_name: claims.full_name,
+          student_email: claims.student_email,
+        },
+      );
+      if (res?.user) {
+        setUser(res.user);
+        setStage("done");
+      } else {
+        setStage("form");
+      }
+    } catch (e) {
+      console.warn("[idme] OIDC failed", e);
       setStage("form");
     }
   }
@@ -86,6 +122,25 @@ export default function IDMeBridge() {
               </View>
 
               <TacticalCard style={{ gap: SPACING.md }}>
+                <View style={styles.modeRow}>
+                  <Ionicons
+                    name={isProductionConfigured() ? "shield-checkmark" : "construct-outline"}
+                    size={14}
+                    color={COLORS.primary}
+                  />
+                  <Text style={styles.modeTxt}>
+                    {isProductionConfigured()
+                      ? t("idMeProdMode", lang)
+                      : t("idMeMockMode", lang)}
+                  </Text>
+                </View>
+                {isProductionConfigured() && (
+                  <Btn
+                    label={t("idMeStartOIDC", lang)}
+                    onPress={submitProduction}
+                    testID="idme-prod-launch"
+                  />
+                )}
                 <Field
                   label={t("legalName", lang)}
                   value={name}
@@ -397,5 +452,23 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontFamily: "Courier",
     fontSize: 11,
+  },
+  modeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: COLORS.primaryDim,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: COLORS.borderStrong,
+  },
+  modeTxt: {
+    color: COLORS.primary,
+    fontFamily: "Courier",
+    fontSize: 10,
+    letterSpacing: 1.5,
+    fontWeight: "700",
+    flex: 1,
   },
 });

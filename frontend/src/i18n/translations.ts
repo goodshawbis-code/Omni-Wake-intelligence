@@ -196,6 +196,47 @@ export const STRINGS = {
   tabSecurity: { en: "Security", es: "Seguridad" },
   tabSettings: { en: "Settings", es: "Ajustes" },
 
+  // Biometric gate
+  vaultBioTag: { en: "VAULT • LOCKED", es: "BÓVEDA • BLOQUEADA" },
+  vaultBioTitle: {
+    en: "Biometric Required",
+    es: "Biometría Requerida",
+  },
+  vaultBioBody: {
+    en: "Authenticate with Face ID or fingerprint to decrypt your vault.",
+    es: "Autentícate con Face ID o huella digital para descifrar tu bóveda.",
+  },
+  vaultBioPrompt: {
+    en: "Unlock Academic Vault",
+    es: "Desbloquear Bóveda Académica",
+  },
+  vaultBioMethod: { en: "Method", es: "Método" },
+  vaultBioUnlock: { en: "Unlock Vault", es: "Desbloquear Bóveda" },
+  vaultBioUnavailable: {
+    en: "Biometric hardware unavailable on this device — vault is open.",
+    es: "Hardware biométrico no disponible — bóveda abierta.",
+  },
+  vaultBioWebFallback: {
+    en: "Biometric lock active in native builds only. Vault is open on web preview.",
+    es: "Bloqueo biométrico solo en builds nativas. Bóveda abierta en vista web.",
+  },
+
+  // ID.me production bridge
+  idMeProdMode: {
+    en: "Live ID.me OIDC (sandbox)",
+    es: "ID.me OIDC en vivo (sandbox)",
+  },
+  idMeMockMode: {
+    en: "Mock bridge (no live ID.me credentials provisioned)",
+    es: "Puente simulado (sin credenciales ID.me en vivo)",
+  },
+  idMeStartOIDC: {
+    en: "Launch ID.me Flow",
+    es: "Iniciar Flujo ID.me",
+  },
+  idMeOIDCCancelled: { en: "Cancelled", es: "Cancelado" },
+  idMeOIDCFailed: { en: "Verification failed", es: "Verificación fallida" },
+
   // Universal Search + Discovery
   universalSearch: {
     en: "Universal School Search",

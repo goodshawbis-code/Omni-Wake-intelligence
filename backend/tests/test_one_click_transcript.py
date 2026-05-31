@@ -81,8 +81,9 @@ class TestAgent:
         assert "csun" in portals and portals["csun"]["mfa_method"] == "sms_code"
 
     def test_unknown_portal_400(self, session, user):
+        # Use a clearly unknown portal id (iter2 expansion added Ivy schools incl. yale)
         r = session.post(f"{API}/agent/start", json={
-            "user_id": user["user_id"], "portal": "yale", "username": "x", "password": "y"
+            "user_id": user["user_id"], "portal": "not_a_real_portal_xyz", "username": "x", "password": "y"
         })
         assert r.status_code == 400
 
