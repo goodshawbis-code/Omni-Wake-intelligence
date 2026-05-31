@@ -281,6 +281,54 @@ export const STRINGS = {
     en: "DISCOVERED VIA AI",
     es: "DESCUBIERTO POR IA",
   },
+
+  // Evolutionary Kernel
+  kernelTag: { en: "EVOLUTIONARY KERNEL", es: "NÚCLEO EVOLUTIVO" },
+  kernelTitle: { en: "Self-Debugging Core", es: "Núcleo de Auto-Diagnóstico" },
+  kernelSub: {
+    en: "AI-triaged anomalies. Captured client + server crashes.",
+    es: "Anomalías triadas por IA. Capturas de cliente + servidor.",
+  },
+  kernelOpen: { en: "Open Kernel Console", es: "Abrir Consola del Núcleo" },
+  kernelEmpty: {
+    en: "No anomalies on record. The kernel is watching.",
+    es: "Sin anomalías registradas. El núcleo vigila.",
+  },
+  kernelResolve: { en: "Mark Resolved", es: "Marcar Resuelto" },
+  kernelResolved: { en: "RESOLVED", es: "RESUELTO" },
+  kernelOpenIssues: { en: "Open Anomalies", es: "Anomalías Abiertas" },
+  kernelTotalIssues: { en: "Total Captured", es: "Total Capturado" },
+  kernelAnalyzing: { en: "Analyzing with AI…", es: "Analizando con IA…" },
+  kernelLLMDisabled: {
+    en: "LLM key missing — traces captured without AI triage.",
+    es: "Clave LLM ausente — trazas capturadas sin triaje IA.",
+  },
+  kernelCrashTag: { en: "SYSTEM ANOMALY DETECTED", es: "ANOMALÍA DEL SISTEMA" },
+  kernelCrashTitle: {
+    en: "The Vault Encountered an Error",
+    es: "La Bóveda Encontró un Error",
+  },
+  kernelCrashBody: {
+    en: "The Evolutionary Kernel has captured this anomaly and is triaging it. You can return to safety or analyze with AI now.",
+    es: "El Núcleo Evolutivo ha capturado esta anomalía y la está triando. Puedes volver o analizar con IA ahora.",
+  },
+  kernelAnalyze: { en: "Analyze with AI", es: "Analizar con IA" },
+  kernelReturnHome: { en: "Return to Safety", es: "Volver al Inicio" },
+  kernelRootCause: { en: "Root Cause", es: "Causa Raíz" },
+  kernelSuggestedFix: { en: "Suggested Fix", es: "Solución Sugerida" },
+  kernelSuspectFile: { en: "Suspected File", es: "Archivo Sospechoso" },
+  kernelSeverity: { en: "Severity", es: "Severidad" },
+  kernelConfidence: { en: "Confidence", es: "Confianza" },
+
+  // Trust / vault key fingerprint
+  vaultKeyFp: { en: "Vault Key Fingerprint", es: "Huella Clave Bóveda" },
+  vaultKeyFpHint: {
+    en: "AES-256 key bound to this device's Secure Enclave.",
+    es: "Clave AES-256 vinculada al Secure Enclave del dispositivo.",
+  },
+  idMeOidcStatus: { en: "ID.me OIDC", es: "ID.me OIDC" },
+  idMeOidcConfigured: { en: "Production client configured", es: "Cliente de producción configurado" },
+  idMeOidcDormant: { en: "Mock bridge active (no live client id)", es: "Puente simulado activo" },
 } as const;
 
 export type StringKey = keyof typeof STRINGS;

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,9 +10,23 @@ import Btn from "@/src/components/Btn";
 import { useApp } from "@/src/context/AppContext";
 import { t } from "@/src/i18n/translations";
 import { COLORS, SPACING } from "@/src/theme/colors";
+import { vaultKeyFingerprint } from "@/src/security/vaultKey";
+import { isProductionConfigured } from "@/src/security/idme";
 
 export default function Settings() {
   const { user, lang, setBiometric, signOut } = useApp();
+  const [fp, setFp] = useState<string>("…");
+  const idmeReady = isProductionConfigured();
+
+  useEffect(() => {
+    let mounted = true;
+    vaultKeyFingerprint()
+      .then((v) => mounted && setFp(v))
+      .catch(() => mounted && setFp("UNAVAILABLE"));
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   function confirmSignOut() {    Alert.alert(
       t("signOut", lang),
@@ -103,6 +118,49 @@ export default function Settings() {
               testID="biometric-switch"
             />
           </View>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <Ionicons name="key-outline" size={20} color={COLORS.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle}>{t("vaultKeyFp", lang)}</Text>
+              <Text style={styles.rowSub} testID="vault-key-fp">
+                {fp} • {t("vaultKeyFpHint", lang)}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <Ionicons
+              name={idmeReady ? "cloud-done-outline" : "cloud-offline-outline"}
+              size={20}
+              color={idmeReady ? COLORS.primary : COLORS.warning}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle}>{t("idMeOidcStatus", lang)}</Text>
+              <Text style={styles.rowSub} testID="idme-oidc-status">
+                {idmeReady
+                  ? t("idMeOidcConfigured", lang)
+                  : t("idMeOidcDormant", lang)}
+              </Text>
+            </View>
+          </View>
+        </TacticalCard>
+
+        {/* Evolutionary Kernel */}
+        <Text style={styles.section}>⬢ {t("kernelTag", lang)}</Text>
+        <TacticalCard>
+          <Pressable
+            onPress={() => router.push("/kernel")}
+            style={styles.row}
+            testID="settings-kernel-link"
+          >
+            <Ionicons name="pulse-outline" size={20} color={COLORS.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle}>{t("kernelTitle", lang)}</Text>
+              <Text style={styles.rowSub}>{t("kernelSub", lang)}</Text>
+            </View>
+            <Text style={styles.actionTxt}>OPEN ›</Text>
+          </Pressable>
         </TacticalCard>
 
         {/* About */}

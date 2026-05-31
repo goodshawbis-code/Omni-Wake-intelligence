@@ -25,6 +25,7 @@ from portal_catalog import (
     REGIONS,
     search as catalog_search,
 )
+from kernel import build_router as build_kernel_router, capture_backend_exception
 
 
 ROOT_DIR = Path(__file__).parent
@@ -780,7 +781,28 @@ async def health():
 
 
 # ====================== APP WIRING ======================
+api_router.include_router(build_kernel_router(db))
 app.include_router(api_router)
+
+
+@app.exception_handler(Exception)
+async def evolutionary_kernel_handler(request, exc):
+    """Catches any uncaught backend exception, persists it via the
+    Evolutionary Kernel, and returns a sanitized 500 to the client."""
+    from fastapi.responses import JSONResponse
+    from fastapi.exceptions import HTTPException as _HTTPExc
+    if isinstance(exc, _HTTPExc):
+        # Don't swallow intentional HTTPExceptions.
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+    try:
+        await capture_backend_exception(request, exc, db)
+    except Exception:
+        logging.getLogger(__name__).exception("kernel capture failed")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error", "kernel": "captured"},
+    )
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -806,6 +828,8 @@ async def startup():
     await db.shares.create_index("token", unique=True)
     await db.shares.create_index("user_id")
     await db.activity_log.create_index("user_id")
+    await db.error_reports.create_index("created_at")
+    await db.error_reports.create_index("user_id")
     logger.info("One Click Transcript backend online.")
 
 
