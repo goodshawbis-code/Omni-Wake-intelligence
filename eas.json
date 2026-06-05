@@ -51,7 +51,9 @@
       "ios": {
         "appleId": "ProTourSmartCycling@gmail.com",
         "ascAppId": "REPLACE_WITH_ASC_APP_ID",
-        "appleTeamId": "REPLACE_WITH_APPLE_TEAM_ID"
+        "appleTeamId": "J63873JACF",
+        "ascApiKeyId": "33J9GYBSPZ",
+        "ascApiKeyIssuerId": "11b292c1-abdc-4f83-b3cd-6201e7f27cd7"
       },
       "android": {
         "serviceAccountKeyPath": "./play-store-service-account.json",
