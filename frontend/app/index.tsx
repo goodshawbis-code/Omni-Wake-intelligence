@@ -48,7 +48,7 @@ export default function Onboarding() {
               <View style={styles.logoBadge}>
                 <Text style={styles.logoBadgeTxt}>OCT</Text>
               </View>
-              <Text style={styles.brand}>ONE CLICK TRANSCRIPT</Text>
+              <Text style={styles.brand}>OMNI WAKE INTELLIGENCE</Text>
             </View>
             <LangToggle compact />
           </View>

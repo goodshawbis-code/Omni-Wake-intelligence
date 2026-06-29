@@ -3,7 +3,7 @@ export type Lang = "en" | "es";
 
 export const STRINGS = {
   // Global
-  appName: { en: "One Click Transcript", es: "One Click Transcript" },
+  appName: { en: "Omni Wake intelligence", es: "Omni Wake intelligence" },
   tagline: {
     en: "Tactical academic credential vault",
     es: "Bóveda táctica de credenciales académicas",

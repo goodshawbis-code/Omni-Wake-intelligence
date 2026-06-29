@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 MODEL_PROVIDER = "anthropic"
 MODEL_NAME = "claude-sonnet-4-5-20250929"  # Sonnet 4.5 (per CEO order)
 SYSTEM_PROMPT = """You are the Evolutionary Kernel — a self-debugging analyst
-embedded inside the 'One Click Transcript' mobile app (Expo + FastAPI).
+embedded inside the 'Omni Wake intelligence' mobile app (Expo + FastAPI).
 
 For every error trace you receive, return ONLY valid JSON (no prose, no fences)
 with EXACTLY these keys:

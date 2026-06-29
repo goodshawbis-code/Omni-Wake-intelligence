@@ -1,4 +1,4 @@
-"""Portal catalog for One Click Transcript.
+"""Portal catalog for Omni Wake intelligence.
 
 Each entry models the data the AI Browser Liaison needs to drive a portal:
     id           kebab-case unique key

@@ -1,4 +1,4 @@
-"""One Click Transcript - Backend API
+"""Omni Wake intelligence - Backend API
 A Division of Brick Outdoor Living, Inc.
 
 High-security academic credential management.
@@ -36,7 +36,7 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-app = FastAPI(title="One Click Transcript API")
+app = FastAPI(title="Omni Wake intelligence API")
 api_router = APIRouter(prefix="/api")
 
 # ====================== HELPERS ======================
@@ -769,7 +769,7 @@ async def security_dashboard(user_id: str):
 @api_router.get("/")
 async def root():
     return {
-        "service": "One Click Transcript",
+        "service": "Omni Wake intelligence",
         "owner": "A Division of Brick Outdoor Living, Inc.",
         "status": "operational",
     }
@@ -830,7 +830,7 @@ async def startup():
     await db.activity_log.create_index("user_id")
     await db.error_reports.create_index("created_at")
     await db.error_reports.create_index("user_id")
-    logger.info("One Click Transcript backend online.")
+    logger.info("Omni Wake intelligence backend online.")
 
 
 @app.on_event("shutdown")

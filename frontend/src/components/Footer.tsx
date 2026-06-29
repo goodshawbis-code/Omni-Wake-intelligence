@@ -9,7 +9,7 @@ export default function Footer() {
     <View style={styles.wrap} testID="legal-footer">
       <View style={styles.bar} />
       <Text style={styles.text}>{t("legalFooter", lang)}</Text>
-      <Text style={styles.sub}>© {new Date().getFullYear()} ONE CLICK TRANSCRIPT</Text>
+      <Text style={styles.sub}>© {new Date().getFullYear()} OMNI WAKE INTELLIGENCE</Text>
     </View>
   );
 }

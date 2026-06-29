@@ -169,7 +169,7 @@ export default function Settings() {
           <View style={styles.row}>
             <Ionicons name="business-outline" size={20} color={COLORS.primary} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>ONE CLICK TRANSCRIPT</Text>
+              <Text style={styles.rowTitle}>OMNI WAKE INTELLIGENCE</Text>
               <Text style={styles.rowSub}>
                 A Division of Brick Outdoor Living, Inc.
               </Text>
