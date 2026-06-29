@@ -1,289 +1,117 @@
-// English + Spanish translations for One Click Transcript
+// Omni Wake intelligence — EN/ES dictionary.
 export type Lang = "en" | "es";
 
+type Entry = { en: string; es: string };
+
 export const STRINGS = {
-  // Global
+  // Brand
   appName: { en: "Omni Wake intelligence", es: "Omni Wake intelligence" },
-  tagline: {
-    en: "Tactical academic credential vault",
-    es: "Bóveda táctica de credenciales académicas",
+  appTagline: {
+    en: "Secure AI Ingestion & Strategic Thought Blueprints",
+    es: "Ingesta IA Segura y Planos Estratégicos del Pensamiento",
   },
-  legalFooter: {
-    en: "A DIVISION OF BRICK OUTDOOR LIVING, INC.",
-    es: "UNA DIVISIÓN DE BRICK OUTDOOR LIVING, INC.",
+  ownerLine: {
+    en: "A Division of Brick Outdoor Living, Inc.",
+    es: "Una división de Brick Outdoor Living, Inc.",
   },
-  continue: { en: "Continue", es: "Continuar" },
-  cancel: { en: "Cancel", es: "Cancelar" },
-  back: { en: "Back", es: "Atrás" },
-  confirm: { en: "Confirm", es: "Confirmar" },
-  loading: { en: "Working…", es: "Procesando…" },
-  done: { en: "Done", es: "Listo" },
-  retry: { en: "Retry", es: "Reintentar" },
-  copy: { en: "Copy", es: "Copiar" },
-  copied: { en: "Copied", es: "Copiado" },
-  delete: { en: "Delete", es: "Eliminar" },
-  share: { en: "Share", es: "Compartir" },
-  revoke: { en: "Revoke", es: "Revocar" },
 
   // Onboarding
-  welcomeTitle: {
-    en: "Verified Student. Secured Vault.",
-    es: "Estudiante Verificado. Bóveda Segura.",
+  onbTag: { en: "● SECURE INGRESS", es: "● INGRESO SEGURO" },
+  onbWelcome: { en: "Welcome, Operator.", es: "Bienvenido, Operador." },
+  onbBody: {
+    en: "Capture executive thoughts. Synthesise them into Strategic Blueprints. Hold them in Secure Custody.",
+    es: "Captura pensamientos ejecutivos. Sintétizalos en Planos Estratégicos. Manténlos en Custodia Segura.",
   },
-  welcomeBody: {
-    en: "Retrieve, encrypt, and share your transcripts with military-grade precision.",
-    es: "Recupera, cifra y comparte tus expedientes con precisión de grado militar.",
-  },
-  verifyWithIdMe: { en: "Verify with ID.me", es: "Verificar con ID.me" },
-  alreadyVerified: { en: "I'm already verified", es: "Ya estoy verificado" },
-  whyVerify: {
-    en: "ID.me verification powers the Verified Student watermark applied to every retrieved document.",
-    es: "La verificación de ID.me activa la marca de agua de Estudiante Verificado aplicada a cada documento.",
-  },
-
-  // ID.me flow
-  idMeTitle: { en: "ID.me Identity Bridge", es: "Puente de Identidad ID.me" },
-  idMeSubtitle: {
-    en: "Confirm the legal identity that will appear on your verified credentials.",
-    es: "Confirma la identidad legal que aparecerá en tus credenciales verificadas.",
-  },
-  legalName: { en: "Legal Full Name", es: "Nombre Legal Completo" },
-  studentEmail: { en: "Student Email", es: "Correo Estudiantil" },
-  beginVerification: { en: "Begin Verification", es: "Iniciar Verificación" },
-  verifying: { en: "Verifying identity…", es: "Verificando identidad…" },
-  verifiedTitle: { en: "Identity Verified", es: "Identidad Verificada" },
-  verifiedBody: {
-    en: "Your Verified Student status is active. All future documents will bear the verified watermark.",
-    es: "Tu estado de Estudiante Verificado está activo. Todos los documentos futuros llevarán la marca verificada.",
-  },
-  enterCommandCenter: {
-    en: "Enter Command Center",
-    es: "Entrar al Centro de Mando",
-  },
-
-  // Dashboard
-  commandCenter: { en: "COMMAND CENTER", es: "CENTRO DE MANDO" },
-  greetingMorning: { en: "Good morning", es: "Buenos días" },
-  greetingAfternoon: { en: "Good afternoon", es: "Buenas tardes" },
-  greetingEvening: { en: "Good evening", es: "Buenas noches" },
-  verifiedStudent: { en: "VERIFIED STUDENT", es: "ESTUDIANTE VERIFICADO" },
-  unverified: { en: "UNVERIFIED", es: "NO VERIFICADO" },
-  retrieveTranscript: {
-    en: "Retrieve Transcript",
-    es: "Recuperar Expediente",
-  },
-  retrieveSub: {
-    en: "Deploy AI liaison to your school portal",
-    es: "Despliega el enlace IA a tu portal escolar",
-  },
-  vaultDocs: { en: "Vault Documents", es: "Documentos en Bóveda" },
-  activeLinks: { en: "Active Links", es: "Enlaces Activos" },
-  encryption: { en: "Encryption", es: "Cifrado" },
-  quickActions: { en: "QUICK ACTIONS", es: "ACCIONES RÁPIDAS" },
-  openVault: { en: "Open Vault", es: "Abrir Bóveda" },
-  trustDashboard: { en: "Trust Dashboard", es: "Panel de Confianza" },
-
-  // Agent flow
-  selectPortal: { en: "Select School Portal", es: "Seleccionar Portal Escolar" },
-  selectPortalSub: {
-    en: "Choose your institution. The AI liaison will navigate the portal on your behalf.",
-    es: "Elige tu institución. El enlace IA navegará el portal por ti.",
-  },
-  portalCreds: { en: "Portal Credentials", es: "Credenciales del Portal" },
-  credsNotice: {
-    en: "Credentials are submitted directly to the portal over an encrypted channel and never stored.",
-    es: "Las credenciales se envían directamente al portal por canal cifrado y nunca se almacenan.",
-  },
-  username: { en: "Username / Student ID", es: "Usuario / ID Estudiantil" },
-  password: { en: "Password", es: "Contraseña" },
-  deployAgent: { en: "Deploy AI Liaison", es: "Desplegar Enlace IA" },
-  mfaDuoTitle: { en: "Approve Duo Push", es: "Aprobar Push de Duo" },
-  mfaDuoBody: {
-    en: "A Duo push has been triggered. Approve it on your phone to allow the agent to continue.",
-    es: "Se envió un push de Duo. Apruébalo en tu teléfono para que el agente continúe.",
-  },
-  mfaSmsTitle: { en: "Enter SMS Code", es: "Ingresar Código SMS" },
-  mfaSmsBody: {
-    en: "A 6-digit code was sent to your registered phone.",
-    es: "Se envió un código de 6 dígitos a tu teléfono.",
-  },
-  mfaCode: { en: "MFA Code", es: "Código MFA" },
-  iApproved: { en: "I approved on my device", es: "Aprobé en mi dispositivo" },
-  submitCode: { en: "Submit Code", es: "Enviar Código" },
-  agentWorking: { en: "Agent Working", es: "Agente Trabajando" },
-  agentWorkingSub: {
-    en: "Locating transcript page and downloading…",
-    es: "Localizando expediente y descargando…",
-  },
-  retrievalComplete: { en: "Retrieval Complete", es: "Recuperación Completa" },
-  documentVaulted: {
-    en: "Document encrypted and stored in vault.",
-    es: "Documento cifrado y almacenado en la bóveda.",
-  },
-  viewDocument: { en: "View Document", es: "Ver Documento" },
-  returnToCenter: { en: "Return to Command Center", es: "Volver al Centro" },
-
-  // Vault
-  vaultTitle: { en: "Academic Vault", es: "Bóveda Académica" },
-  vaultSub: {
-    en: "AES-256 encrypted. Stored on device.",
-    es: "Cifrado AES-256. Almacenado en el dispositivo.",
-  },
-  vaultEmpty: {
-    en: "Your vault is empty. Retrieve your first transcript to begin.",
-    es: "Tu bóveda está vacía. Recupera tu primer expediente para comenzar.",
-  },
-  retrievedOn: { en: "Retrieved", es: "Recuperado" },
-
-  // Document viewer
-  documentViewer: { en: "Document Viewer", es: "Visor de Documento" },
-  oneTapShare: { en: "1-Tap Share", es: "Compartir 1-Toque" },
-  shareDocument: { en: "Share Document", es: "Compartir Documento" },
-  gpa: { en: "GPA", es: "GPA" },
-  credits: { en: "Credits", es: "Créditos" },
-  institution: { en: "Institution", es: "Institución" },
-
-  // Share
-  shareTitle: { en: "Generate Secure Link", es: "Generar Enlace Seguro" },
-  shareSub: {
-    en: "Self-destructs after time elapsed or view limit reached.",
-    es: "Se autodestruye tras tiempo o límite de vistas.",
-  },
-  recipient: { en: "Recipient Label", es: "Etiqueta del Destinatario" },
-  recipientPlaceholder: { en: "e.g. Acme Recruiter", es: "ej. Reclutador Acme" },
-  expiresIn: { en: "Expires In (hours)", es: "Expira en (horas)" },
-  maxViews: { en: "Max Views", es: "Vistas Máximas" },
-  generateLink: { en: "Generate Self-Destruct Link", es: "Generar Enlace Autodestructivo" },
-  yourLink: { en: "Your Secure Link", es: "Tu Enlace Seguro" },
-  linkCopied: { en: "Link copied to clipboard", es: "Enlace copiado al portapapeles" },
-  shareHistory: { en: "Share History", es: "Historial de Compartidos" },
-  views: { en: "Views", es: "Vistas" },
-  destroyed: { en: "DESTROYED", es: "DESTRUIDO" },
-  active: { en: "ACTIVE", es: "ACTIVO" },
-  expired: { en: "EXPIRED", es: "EXPIRADO" },
-
-  // Security dashboard
-  trustDashboardTitle: {
-    en: "Security & Privacy",
-    es: "Seguridad y Privacidad",
-  },
-  encryptionStatus: { en: "Encryption Status", es: "Estado del Cifrado" },
-  keyStorage: { en: "Key Storage", es: "Almacenamiento de Claves" },
-  identityStatus: { en: "Identity Status", es: "Estado de Identidad" },
-  biometricLock: { en: "Biometric Lock", es: "Bloqueo Biométrico" },
-  compliance: { en: "Compliance", es: "Cumplimiento" },
-  recentActivity: { en: "Recent Activity", es: "Actividad Reciente" },
-  enabled: { en: "ENABLED", es: "ACTIVADO" },
-  disabled: { en: "DISABLED", es: "DESACTIVADO" },
-
-  // Settings
-  settings: { en: "Settings", es: "Ajustes" },
-  language: { en: "Language", es: "Idioma" },
-  english: { en: "English", es: "Inglés" },
-  spanish: { en: "Spanish", es: "Español" },
-  account: { en: "Account", es: "Cuenta" },
-  identityVerified: { en: "Identity Verified", es: "Identidad Verificada" },
-  notVerified: { en: "Not Verified", es: "No Verificado" },
-  signOut: { en: "Sign Out (wipe local data)", es: "Cerrar sesión (borrar datos)" },
-  confirmSignOut: {
-    en: "This will wipe all local data. Continue?",
-    es: "Esto borrará todos los datos locales. ¿Continuar?",
-  },
+  onbFullName: { en: "Full Name", es: "Nombre Completo" },
+  onbEmail: { en: "Enterprise Email", es: "Correo Empresarial" },
+  onbProceed: { en: "AUTHORISE INGRESS", es: "AUTORIZAR INGRESO" },
+  onbSkip: { en: "Continue as Tier-1 Operator", es: "Continuar como Operador Tier-1" },
 
   // Tabs
-  tabHome: { en: "Center", es: "Centro" },
-  tabVault: { en: "Vault", es: "Bóveda" },
-  tabSecurity: { en: "Security", es: "Seguridad" },
+  tabCapture: { en: "Capture", es: "Capturar" },
+  tabBlueprints: { en: "Blueprints", es: "Planos" },
+  tabCustody: { en: "Custody", es: "Custodia" },
   tabSettings: { en: "Settings", es: "Ajustes" },
 
-  // Biometric gate
-  vaultBioTag: { en: "VAULT • LOCKED", es: "BÓVEDA • BLOQUEADA" },
-  vaultBioTitle: {
-    en: "Biometric Required",
-    es: "Biometría Requerida",
+  // Capture
+  captureTag: { en: "● THOUGHT CAPTURE", es: "● CAPTURA DE PENSAMIENTO" },
+  captureTitle: { en: "Oracle AI Ingestion", es: "Ingesta IA Oracle" },
+  captureSubtitle: {
+    en: "Capture an executive thought. Optionally tag it. The Oracle will synthesise.",
+    es: "Captura un pensamiento ejecutivo. Etíñuetalo opcional. El Oracle sintetizará.",
   },
-  vaultBioBody: {
-    en: "Authenticate with Face ID or fingerprint to decrypt your vault.",
-    es: "Autentícate con Face ID o huella digital para descifrar tu bóveda.",
+  captureTitlePlaceholder: { en: "Thought title", es: "Título del pensamiento" },
+  captureBodyPlaceholder: {
+    en: "Type or paste the body of your thought...",
+    es: "Escribe o pega el cuerpo de tu pensamiento...",
   },
-  vaultBioPrompt: {
-    en: "Unlock Academic Vault",
-    es: "Desbloquear Bóveda Académica",
+  captureTagsPlaceholder: { en: "Tags (comma separated)", es: "Etiquetas (separadas por coma)" },
+  captureModeText: { en: "TEXT", es: "TEXTO" },
+  captureModeAudio: { en: "AUDIO", es: "AUDIO" },
+  captureModeHybrid: { en: "HYBRID", es: "HÍBRIDO" },
+  captureSubmit: { en: "INGEST", es: "INGERIR" },
+  captureRecord: { en: "RECORD", es: "GRABAR" },
+  captureStop: { en: "STOP", es: "DETENER" },
+  captureRecHint: {
+    en: "Native audio recording requires a device build. The preview captures duration only.",
+    es: "La grabación nativa requiere una build de dispositivo. La vista previa sólo registra duración.",
   },
-  vaultBioMethod: { en: "Method", es: "Método" },
-  vaultBioUnlock: { en: "Unlock Vault", es: "Desbloquear Bóveda" },
-  vaultBioUnavailable: {
-    en: "Biometric hardware unavailable on this device — vault is open.",
-    es: "Hardware biométrico no disponible — bóveda abierta.",
-  },
-  vaultBioWebFallback: {
-    en: "Biometric lock active in native builds only. Vault is open on web preview.",
-    es: "Bloqueo biométrico solo en builds nativas. Bóveda abierta en vista web.",
-  },
+  captureSuccess: { en: "Ingested. Open the Blueprints tab to synthesise.", es: "Ingerido. Abre Planos para sintetizar." },
 
-  // ID.me production bridge
-  idMeProdMode: {
-    en: "Live ID.me OIDC (sandbox)",
-    es: "ID.me OIDC en vivo (sandbox)",
+  // Blueprints
+  bpTag: { en: "● STRATEGIC BLUEPRINTS", es: "● PLANOS ESTRATÉGICOS" },
+  bpTitle: { en: "Blueprint Gallery", es: "Galería de Planos" },
+  bpSub: {
+    en: "Oracle-synthesised intelligence from your captured thoughts.",
+    es: "Inteligencia sintetizada por Oracle desde tus pensamientos capturados.",
   },
-  idMeMockMode: {
-    en: "Mock bridge (no live ID.me credentials provisioned)",
-    es: "Puente simulado (sin credenciales ID.me en vivo)",
+  bpEmpty: { en: "No blueprints yet.", es: "Sin planos aún." },
+  bpEmptyHint: {
+    en: "Capture thoughts, then synthesise.",
+    es: "Captura pensamientos y luego sintetiza.",
   },
-  idMeStartOIDC: {
-    en: "Launch ID.me Flow",
-    es: "Iniciar Flujo ID.me",
-  },
-  idMeOIDCCancelled: { en: "Cancelled", es: "Cancelado" },
-  idMeOIDCFailed: { en: "Verification failed", es: "Verificación fallida" },
+  bpSynth: { en: "SYNTHESISE SELECTED", es: "SINTETIZAR SELECCIONADOS" },
+  bpSynthHint: { en: "Select up to 12 thoughts.", es: "Selecciona hasta 12 pensamientos." },
+  bpSynthInProgress: { en: "Oracle synthesising...", es: "Oracle sintetizando..." },
+  bpThoughts: { en: "Recent Thoughts", es: "Pensamientos Recientes" },
+  bpClassification: { en: "Classification", es: "Clasificación" },
+  bpConfidence: { en: "Confidence", es: "Confianza" },
+  bpActionItems: { en: "Action Items", es: "Acciones" },
+  bpSummary: { en: "Executive Summary", es: "Resumen Ejecutivo" },
+  bpPin: { en: "PIN", es: "FIJAR" },
+  bpUnpin: { en: "UNPIN", es: "DESFIJAR" },
+  bpDelete: { en: "DELETE", es: "BORRAR" },
+  bpSources: { en: "Source Thoughts", es: "Pensamientos Fuente" },
 
-  // Universal Search + Discovery
-  universalSearch: {
-    en: "Universal School Search",
-    es: "Búsqueda Universal de Escuelas",
-  },
-  searchHint: {
-    en: "104 schools mapped • US + International • IPEDS-aligned",
-    es: "104 escuelas mapeadas • EE.UU. + Internacional • alineado con IPEDS",
-  },
-  searchPlaceholder: {
-    en: "Search by name, mascot, or acronym…",
-    es: "Buscar por nombre, mascota o sigla…",
-  },
-  noResults: {
-    en: "No mapped school matches that name.",
-    es: "Ninguna escuela mapeada coincide con ese nombre.",
-  },
-  cantFind: { en: "Can't find your school?", es: "¿No encuentras tu escuela?" },
-  launchDiscovery: {
-    en: "Launch AI Discovery Mode",
-    es: "Iniciar Modo Descubrimiento IA",
-  },
-  discoveryTitle: { en: "AI Discovery Mode", es: "Modo Descubrimiento IA" },
-  discoverySub: {
-    en: "If your school isn't mapped, the AI agent will explore the portal structure in real-time to locate the transcript page.",
-    es: "Si tu escuela no está mapeada, el agente IA explorará la estructura del portal en tiempo real para localizar la página del expediente.",
-  },
-  schoolName: { en: "School Name", es: "Nombre de la Escuela" },
-  schoolNamePh: {
-    en: "e.g. Reed College",
-    es: "ej. Universidad Reed",
-  },
-  portalUrlOptional: {
-    en: "Portal URL (optional)",
-    es: "URL del Portal (opcional)",
-  },
-  beginDiscovery: { en: "Begin Discovery", es: "Iniciar Descubrimiento" },
-  filterAll: { en: "All", es: "Todas" },
-  filterUS: { en: "US", es: "EE.UU." },
-  filterINTL: { en: "International", es: "Internacional" },
-  discoveredBadge: {
-    en: "DISCOVERED VIA AI",
-    es: "DESCUBIERTO POR IA",
-  },
+  // Custody
+  custodyTag: { en: "● SECURE DATA CUSTODY", es: "● CUSTODIA DE DATOS SEGURA" },
+  custodyTitle: { en: "Operator Command", es: "Comando del Operador" },
+  custodyClearance: { en: "Clearance", es: "Autorización" },
+  custodyThoughts: { en: "Captured Thoughts", es: "Pensamientos Capturados" },
+  custodyBlueprints: { en: "Synthesised Blueprints", es: "Planos Sintetizados" },
+  custodyPinned: { en: "Pinned", es: "Fijados" },
+  custodyClassification: { en: "Classification Mix", es: "Mezcla de Clasificación" },
+  custodyActivity: { en: "Activity Log", es: "Registro de Actividad" },
+  custodySecurity: { en: "Security Posture", es: "Postura de Seguridad" },
 
-  // Evolutionary Kernel
-  kernelTag: { en: "EVOLUTIONARY KERNEL", es: "NÚCLEO EVOLUTIVO" },
+  // Settings
+  settingsTag: { en: "● SETTINGS", es: "● AJUSTES" },
+  settingsTitle: { en: "Operator Profile", es: "Perfil del Operador" },
+  settingsLang: { en: "Language", es: "Idioma" },
+  settingsBio: { en: "Biometric Lock", es: "Bloqueo Biométrico" },
+  settingsBioHint: {
+    en: "Require Face ID / fingerprint to unlock Secure Data Custody.",
+    es: "Requiere Face ID / huella para desbloquear la Custodia de Datos.",
+  },
+  vaultKeyFp: { en: "Vault Key Fingerprint", es: "Huella Clave Bóveda" },
+  vaultKeyFpHint: {
+    en: "AES-256 key bound to this device's Secure Enclave.",
+    es: "Clave AES-256 vinculada al Secure Enclave del dispositivo.",
+  },
+  signOut: { en: "END SESSION", es: "FIN DE SESIÓN" },
+
+  // Kernel
+  kernelTag: { en: "● EVOLUTIONARY KERNEL", es: "● NÚCLEO EVOLUTIVO" },
   kernelTitle: { en: "Self-Debugging Core", es: "Núcleo de Auto-Diagnóstico" },
   kernelSub: {
     en: "AI-triaged anomalies. Captured client + server crashes.",
@@ -303,38 +131,36 @@ export const STRINGS = {
     en: "LLM key missing — traces captured without AI triage.",
     es: "Clave LLM ausente — trazas capturadas sin triaje IA.",
   },
-  kernelCrashTag: { en: "SYSTEM ANOMALY DETECTED", es: "ANOMALÍA DEL SISTEMA" },
-  kernelCrashTitle: {
-    en: "The Vault Encountered an Error",
-    es: "La Bóveda Encontró un Error",
-  },
-  kernelCrashBody: {
-    en: "The Evolutionary Kernel has captured this anomaly and is triaging it. You can return to safety or analyze with AI now.",
-    es: "El Núcleo Evolutivo ha capturado esta anomalía y la está triando. Puedes volver o analizar con IA ahora.",
-  },
-  kernelAnalyze: { en: "Analyze with AI", es: "Analizar con IA" },
-  kernelReturnHome: { en: "Return to Safety", es: "Volver al Inicio" },
   kernelRootCause: { en: "Root Cause", es: "Causa Raíz" },
   kernelSuggestedFix: { en: "Suggested Fix", es: "Solución Sugerida" },
   kernelSuspectFile: { en: "Suspected File", es: "Archivo Sospechoso" },
   kernelSeverity: { en: "Severity", es: "Severidad" },
   kernelConfidence: { en: "Confidence", es: "Confianza" },
 
-  // Trust / vault key fingerprint
-  vaultKeyFp: { en: "Vault Key Fingerprint", es: "Huella Clave Bóveda" },
-  vaultKeyFpHint: {
-    en: "AES-256 key bound to this device's Secure Enclave.",
-    es: "Clave AES-256 vinculada al Secure Enclave del dispositivo.",
+  // Biometric gate
+  vaultBioTag: { en: "CUSTODY • LOCKED", es: "CUSTODIA • BLOQUEADA" },
+  vaultBioTitle: { en: "Secure Data Custody", es: "Custodia de Datos Segura" },
+  vaultBioBody: {
+    en: "Biometric authentication required.",
+    es: "Se requiere autenticación biométrica.",
   },
-  idMeOidcStatus: { en: "ID.me OIDC", es: "ID.me OIDC" },
-  idMeOidcConfigured: { en: "Production client configured", es: "Cliente de producción configurado" },
-  idMeOidcDormant: { en: "Mock bridge active (no live client id)", es: "Puente simulado activo" },
+  vaultBioMethod: { en: "Face ID / Fingerprint", es: "Face ID / Huella" },
+  vaultBioUnlock: { en: "UNLOCK", es: "DESBLOQUEAR" },
+  vaultBioPrompt: { en: "Unlock your Secure Data Custody", es: "Desbloquea tu Custodia" },
+  vaultBioUnavailable: {
+    en: "Biometrics unavailable on this device. Set up Face ID / fingerprint in system settings.",
+    es: "Biometría no disponible. Configura Face ID / huella en ajustes.",
+  },
+  vaultBioWebFallback: {
+    en: "Biometric lock is enabled but cannot be enforced on the web preview — it activates on the native build.",
+    es: "El bloqueo biométrico está activo pero no se aplica en la vista web — se activa en la build nativa.",
+  },
 } as const;
 
-export type StringKey = keyof typeof STRINGS;
+type Key = keyof typeof STRINGS;
 
-export function t(key: StringKey, lang: Lang): string {
-  const entry = STRINGS[key];
+export function t(key: Key | string, lang: Lang): string {
+  const entry = (STRINGS as Record<string, Entry>)[key as string];
   if (!entry) return String(key);
   return entry[lang] ?? entry.en;
 }

@@ -1,43 +1,39 @@
-import { Text, View, StyleSheet } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { COLORS, SPACING } from "@/src/theme/colors";
-import { useApp } from "@/src/context/AppContext";
-import { t } from "@/src/i18n/translations";
 
 export default function Footer() {
-  const { lang } = useApp();
   return (
-    <View style={styles.wrap} testID="legal-footer">
-      <View style={styles.bar} />
-      <Text style={styles.text}>{t("legalFooter", lang)}</Text>
-      <Text style={styles.sub}>© {new Date().getFullYear()} OMNI WAKE INTELLIGENCE</Text>
+    <View style={styles.shell}>
+      <View style={styles.line} />
+      <Text style={styles.brand}>OMNI WAKE INTELLIGENCE</Text>
+      <Text style={styles.sub}>© {new Date().getFullYear()} • A Division of Brick Outdoor Living, Inc.</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.lg,
+  shell: {
+    paddingVertical: SPACING.lg,
     alignItems: "center",
-    gap: 4,
+    gap: 6,
   },
-  bar: {
-    width: 28,
-    height: 2,
+  line: {
+    width: 60,
+    height: 1,
     backgroundColor: COLORS.primary,
-    marginBottom: SPACING.sm,
+    marginBottom: 6,
   },
-  text: {
-    color: COLORS.textTertiary,
-    fontSize: 10,
-    letterSpacing: 2,
+  brand: {
+    color: COLORS.primary,
     fontFamily: "Courier",
-    textAlign: "center",
+    fontSize: 10,
+    letterSpacing: 3,
+    fontWeight: "700",
   },
   sub: {
     color: COLORS.textTertiary,
-    fontSize: 9,
-    letterSpacing: 1.5,
     fontFamily: "Courier",
+    fontSize: 9,
+    letterSpacing: 1,
   },
 });

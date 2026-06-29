@@ -16,13 +16,13 @@ import { installGlobalKernel, dropBreadcrumb } from "@/src/kernel/reporter";
 SplashScreen.preventAutoHideAsync();
 
 function StackWithKernel() {
-  const { user } = useApp();
+  const { operator } = useApp();
   useEffect(() => {
-    installGlobalKernel(() => user?.user_id ?? null);
-    dropBreadcrumb(`app.mount user=${user?.user_id ?? "anonymous"}`);
-  }, [user?.user_id]);
+    installGlobalKernel(() => operator?.operator_id ?? null);
+    dropBreadcrumb(`app.mount op=${operator?.operator_id ?? "anonymous"}`);
+  }, [operator?.operator_id]);
   return (
-    <EvolutionaryErrorBoundary getUserId={() => user?.user_id ?? null}>
+    <EvolutionaryErrorBoundary getUserId={() => operator?.operator_id ?? null}>
       <Stack
         screenOptions={{
           headerShown: false,

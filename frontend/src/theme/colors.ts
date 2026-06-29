@@ -1,23 +1,38 @@
-// Command Center Navy/Gold — Military-HBCU tactical theme
+// Omni Wake intelligence — Enterprise Gold + Navy palette.
 export const COLORS = {
-  background: "#020617",
-  surface: "#0F172A",
-  surfaceElevated: "#1E293B",
-  surfaceMuted: "#0B1220",
-  primary: "#D4AF37", // HBCU gold
-  primaryHover: "#FDE047",
-  primaryDim: "rgba(212,175,55,0.12)",
-  primaryGlow: "rgba(212,175,55,0.25)",
-  textPrimary: "#F8FAFC",
-  textSecondary: "#94A3B8",
-  textTertiary: "#64748B",
-  border: "rgba(255,255,255,0.08)",
-  borderStrong: "rgba(212,175,55,0.35)",
-  accentNavy: "#0A1128",
-  success: "#22C55E",
-  warning: "#EAB308",
-  danger: "#EF4444",
-  dangerDim: "rgba(239,68,68,0.12)",
+  // Backgrounds
+  background: "#0A1628",       // deep navy
+  backgroundAlt: "#0F1E33",    // slightly elevated navy
+  surface: "#1B2838",          // card surface
+  surfaceElevated: "#1E3A5F",  // hover/active
+  surfaceMuted: "#0E1A2D",     // sunken surface
+
+  // Brand gold
+  primary: "#C5A559",          // executive gold
+  primaryHover: "#FFD700",     // bright gold accent
+  primaryDim: "rgba(197,165,89,0.12)",
+  primaryGlow: "rgba(255,215,0,0.18)",
+  primaryDeep: "#8C7A3F",      // darkened gold
+
+  // Navy accents
+  accentNavy: "#1E3A5F",
+  accentNavyDeep: "#0A1628",
+
+  // Text
+  textPrimary: "#F5F0E1",      // warm ivory
+  textSecondary: "#9DB1C9",    // muted blue-grey
+  textTertiary: "#5F7894",     // softer
+
+  // Borders
+  border: "rgba(197,165,89,0.18)",
+  borderStrong: "rgba(255,215,0,0.45)",
+  borderSoft: "rgba(255,255,255,0.06)",
+
+  // States
+  success: "#3FB68E",
+  warning: "#E8A53A",
+  danger: "#D9534F",
+  dangerDim: "rgba(217,83,79,0.14)",
 } as const;
 
 export const SPACING = {
@@ -30,16 +45,14 @@ export const SPACING = {
 } as const;
 
 export const RADIUS = {
-  sm: 4,
-  md: 6,
-  lg: 8,
+  sm: 6,
+  md: 10,
+  lg: 14,
   pill: 999,
 } as const;
 
 export const FONTS = {
-  serif: "Georgia", // Playfair Display fallback
-  body: "System",
+  serif: "Georgia",
   mono: "Courier",
+  sans: "System",
 } as const;
-
-export const LEGAL_FOOTER = "A DIVISION OF BRICK OUTDOOR LIVING, INC.";

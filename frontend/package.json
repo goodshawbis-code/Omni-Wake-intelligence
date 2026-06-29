@@ -1,5 +1,6 @@
 {
-  "name": "frontend",
+  "name": "omni-wake-intelligence",
+  "description": "Secure AI Ingestion & Strategic Thought Blueprints Platform",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {

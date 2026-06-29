@@ -10,79 +10,71 @@ import { storage } from "@/src/utils/storage";
 import { Lang } from "@/src/i18n/translations";
 import { api } from "@/src/api/client";
 
-type User = {
-  user_id: string;
+export type Operator = {
+  operator_id: string;
   device_id?: string | null;
-  id_me_verified: boolean;
-  id_me_full_name?: string | null;
-  id_me_verified_at?: string | null;
-  language: Lang;
+  email?: string | null;
+  full_name?: string | null;
+  clearance_level: string;
+  ingress_verified: boolean;
+  ingress_verified_at?: string | null;
   biometric_lock: boolean;
+  language: Lang;
   created_at: string;
 };
 
 type Ctx = {
-  user: User | null;
+  operator: Operator | null;
+  // Back-compat alias for components that still read "user"
+  user: Operator | null;
   lang: Lang;
   loading: boolean;
   setLang: (l: Lang) => Promise<void>;
-  setUser: (u: User) => void;
-  refreshUser: () => Promise<void>;
+  setOperator: (o: Operator) => void;
+  refresh: () => Promise<void>;
   signOut: () => Promise<void>;
   setBiometric: (v: boolean) => Promise<void>;
 };
 
 const AppContext = createContext<Ctx | null>(null);
 
-const USER_ID_KEY = "oct.user_id";
-const LANG_KEY = "oct.lang";
+const OP_ID_KEY = "omw.operator_id";
+const LANG_KEY = "omw.lang";
+const DEVICE_KEY = "omw.device_id";
 
-function ensureDeviceId(): Promise<string> {
-  return storage
-    .secureGet<string>("oct.device_id", "")
-    .then((id) => {
-      if (id && typeof id === "string" && id.length > 0) return id;
-      const gen =
-        "dev_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
-      storage.secureSet("oct.device_id", gen);
-      return gen;
-    });
+async function ensureDeviceId(): Promise<string> {
+  const id = await storage.secureGet<string>(DEVICE_KEY, "");
+  if (id && typeof id === "string" && id.length > 0) return id;
+  const gen = "dev_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  await storage.secureSet(DEVICE_KEY, gen);
+  return gen;
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [user, setUserState] = useState<User | null>(null);
+  const [operator, setOpState] = useState<Operator | null>(null);
   const [lang, setLangState] = useState<Lang>("en");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const bootstrap = useCallback(async () => {
-    // Safety net: if anything hangs (storage/fetch), still flip loading off.
-    const safety = setTimeout(() => setLoading(false), 4000);
+    setLoading(true);
+    const safety = setTimeout(() => setLoading(false), 3000);
     try {
-      console.log("[oct] bootstrap start");
+      console.log("[omw] bootstrap start");
       const storedLang = await storage.getItem<string>(LANG_KEY, "");
-      if (storedLang === "en" || storedLang === "es") {
-        setLangState(storedLang);
-      }
-
+      if (storedLang === "en" || storedLang === "es") setLangState(storedLang);
       const deviceId = await ensureDeviceId();
-      console.log("[oct] device", deviceId);
-      const res = await api.post<User>("/users/bootstrap", {
-        device_id: deviceId,
-      });
-      console.log("[oct] bootstrap response", !!res);
+      console.log("[omw] device", deviceId);
+      const res = await api.post<Operator>("/ingress/bootstrap", { device_id: deviceId });
+      console.log("[omw] bootstrap response", !!res);
       if (res) {
-        setUserState(res);
-        await storage.secureSet(USER_ID_KEY, res.user_id);
-        if (
-          res.language &&
-          (res.language === "en" || res.language === "es") &&
-          !storedLang
-        ) {
-          setLangState(res.language);
+        setOpState(res);
+        await storage.secureSet(OP_ID_KEY, res.operator_id);
+        if (res.language === "en" || res.language === "es") {
+          if (!storedLang) setLangState(res.language);
         }
       }
     } catch (e) {
-      console.warn("[oct] bootstrap failed", e);
+      console.warn("[omw] bootstrap failed", e);
     } finally {
       clearTimeout(safety);
       setLoading(false);
@@ -93,53 +85,55 @@ export function AppProvider({ children }: { children: ReactNode }) {
     bootstrap();
   }, [bootstrap]);
 
-  const setLang = async (l: Lang) => {
+  const setLang = useCallback(async (l: Lang) => {
     setLangState(l);
     await storage.setItem(LANG_KEY, l);
-    if (user) {
-      try {
-        const updated = await api.post<User>("/users/settings", {
-          user_id: user.user_id,
-          language: l,
-        });
-        if (updated) setUserState(updated);
-      } catch (e) {
-        console.warn("lang sync failed", e);
-      }
+    if (operator) {
+      const res = await api.post<Operator>("/ingress/settings", {
+        operator_id: operator.operator_id,
+        language: l,
+      });
+      if (res) setOpState(res);
     }
-  };
+  }, [operator]);
 
-  const refreshUser = useCallback(async () => {
-    if (!user) return;
-    const fresh = await api.get<User>(`/users/${user.user_id}`);
-    if (fresh) setUserState(fresh);
-  }, [user]);
+  const setOperator = useCallback((o: Operator) => setOpState(o), []);
 
-  const signOut = async () => {
-    await storage.secureRemove(USER_ID_KEY);
-    await storage.secureRemove("oct.device_id");
-    setUserState(null);
-    await bootstrap();
-  };
+  const refresh = useCallback(async () => {
+    if (!operator) return;
+    // No dedicated /me route; we rebootstrap which is idempotent
+    const deviceId = await ensureDeviceId();
+    const res = await api.post<Operator>("/ingress/bootstrap", { device_id: deviceId });
+    if (res) setOpState(res);
+  }, [operator]);
 
-  const setBiometric = async (v: boolean) => {
-    if (!user) return;
-    const updated = await api.post<User>("/users/settings", {
-      user_id: user.user_id,
+  const signOut = useCallback(async () => {
+    await storage.secureRemove(OP_ID_KEY);
+    await storage.secureRemove(DEVICE_KEY);
+    setOpState(null);
+    setLoading(true);
+    bootstrap();
+  }, [bootstrap]);
+
+  const setBiometric = useCallback(async (v: boolean) => {
+    if (!operator) return;
+    const res = await api.post<Operator>("/ingress/settings", {
+      operator_id: operator.operator_id,
       biometric_lock: v,
     });
-    if (updated) setUserState(updated);
-  };
+    if (res) setOpState(res);
+  }, [operator]);
 
   return (
     <AppContext.Provider
       value={{
-        user,
+        operator,
+        user: operator,
         lang,
         loading,
         setLang,
-        setUser: setUserState,
-        refreshUser,
+        setOperator,
+        refresh,
         signOut,
         setBiometric,
       }}
@@ -149,8 +143,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useApp() {
+export function useApp(): Ctx {
   const ctx = useContext(AppContext);
-  if (!ctx) throw new Error("useApp must be used inside AppProvider");
+  if (!ctx) throw new Error("useApp must be used inside <AppProvider>");
   return ctx;
 }

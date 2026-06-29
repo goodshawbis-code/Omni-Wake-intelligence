@@ -1,8 +1,8 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { COLORS } from "@/src/theme/colors";
 import { useApp } from "@/src/context/AppContext";
 import { t } from "@/src/i18n/translations";
-import { COLORS } from "@/src/theme/colors";
 
 export default function TabsLayout() {
   const { lang } = useApp();
@@ -10,16 +10,16 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textTertiary,
         tabBarStyle: {
           backgroundColor: COLORS.surface,
           borderTopColor: COLORS.border,
           borderTopWidth: 1,
-          height: 78,
-          paddingTop: 8,
-          paddingBottom: 16,
+          height: 70,
+          paddingTop: 6,
+          paddingBottom: 12,
         },
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: COLORS.textTertiary,
         tabBarLabelStyle: {
           fontFamily: "Courier",
           fontSize: 10,
@@ -29,27 +29,27 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="capture"
         options={{
-          title: t("tabHome", lang).toUpperCase(),
+          title: t("tabCapture", lang).toUpperCase(),
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="grid-outline" color={color} size={size} />
+            <Ionicons name="radio-outline" color={color} size={size} />
           ),
         }}
       />
       <Tabs.Screen
-        name="vault"
+        name="blueprints"
         options={{
-          title: t("tabVault", lang).toUpperCase(),
+          title: t("tabBlueprints", lang).toUpperCase(),
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="lock-closed-outline" color={color} size={size} />
+            <Ionicons name="file-tray-stacked-outline" color={color} size={size} />
           ),
         }}
       />
       <Tabs.Screen
-        name="security"
+        name="custody"
         options={{
-          title: t("tabSecurity", lang).toUpperCase(),
+          title: t("tabCustody", lang).toUpperCase(),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="shield-checkmark-outline" color={color} size={size} />
           ),

@@ -34,19 +34,19 @@ const SEV_COLOR: Record<string, string> = {
 };
 
 export default function KernelConsole() {
-  const { user, lang } = useApp();
+  const { operator, lang } = useApp();
   const [reports, setReports] = useState<KernelReport[]>([]);
   const [stats, setStats] = useState<KernelStats | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     const [items, s] = await Promise.all([
-      listReports(user?.user_id),
-      getStats(user?.user_id),
+      listReports(operator?.operator_id),
+      getStats(operator?.operator_id),
     ]);
     setReports(items);
     setStats(s);
-  }, [user?.user_id]);
+  }, [operator?.operator_id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -68,7 +68,7 @@ export default function KernelConsole() {
     // Test hook: lets QA confirm the loop works end-to-end without crashing
     // the app. Pushes a synthetic trace through the kernel and refreshes.
     await reportError({
-      user_id: user?.user_id ?? null,
+      user_id: operator?.operator_id ?? null,
       error: new Error(
         "Synthetic trace from Kernel Console — verifying Sonnet 4.5 triage",
       ),

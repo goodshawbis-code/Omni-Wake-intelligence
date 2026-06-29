@@ -1,237 +1,189 @@
-import { useEffect } from "react";
-import {
-  Image,
-  ImageBackground,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { useState } from "react";
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { useApp } from "@/src/context/AppContext";
-import { t } from "@/src/i18n/translations";
-import { COLORS, SPACING } from "@/src/theme/colors";
 import Btn from "@/src/components/Btn";
 import LangToggle from "@/src/components/LangToggle";
-import Footer from "@/src/components/Footer";
-
-const HERO_BG =
-  "https://images.pexels.com/photos/34929879/pexels-photo-34929879.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940";
-const GOLD_SEAL =
-  "https://static.prod-images.emergentagent.com/jobs/5d50ab59-b2b1-4ae9-8bd1-7d38f183a391/images/3a7a5fe1dc994fc9d457cebe840cc70f7999afd619f94d15e916df116376a787.png";
+import { useApp } from "@/src/context/AppContext";
+import { t } from "@/src/i18n/translations";
+import { COLORS, SPACING, RADIUS } from "@/src/theme/colors";
+import { api } from "@/src/api/client";
+import { Operator } from "@/src/context/AppContext";
 
 export default function Onboarding() {
-  const { user, lang } = useApp();
+  const { operator, lang, setOperator, loading } = useApp();
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  // If we already have a verified session, jump straight to the command center.
-  useEffect(() => {
-    if (user?.id_me_verified) {
-      router.replace("/(tabs)");
+  // Skip loading branch entirely \u2014 render the form immediately, bootstrap runs in background.
+  if (operator?.ingress_verified) {
+    setTimeout(() => router.replace("/(tabs)/capture"), 50);
+  }
+
+  async function authorise() {
+    if (!operator) return;
+    if (!fullName.trim() || !email.trim()) {
+      Alert.alert("Missing fields", "Provide your full name and enterprise email.");
+      return;
     }
-  }, [user]);
+    setSubmitting(true);
+    try {
+      const res = await api.post<Operator>("/ingress/verify", {
+        operator_id: operator.operator_id,
+        full_name: fullName.trim(),
+        email: email.trim(),
+      });
+      if (res) {
+        setOperator(res);
+        router.replace("/(tabs)/capture");
+      }
+    } catch (e) {
+      Alert.alert("Ingress failed", String(e).slice(0, 200));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function skip() {
+    router.replace("/(tabs)/capture");
+  }
 
   return (
-    <ImageBackground
-      source={{ uri: HERO_BG }}
-      style={styles.bg}
-      imageStyle={{ opacity: 0.35 }}
-    >
-      <View style={styles.overlay}>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Top bar */}
-          <View style={styles.topBar}>
-            <View style={styles.logoRow}>
-              <View style={styles.logoBadge}>
-                <Text style={styles.logoBadgeTxt}>OCT</Text>
-              </View>
-              <Text style={styles.brand}>OMNI WAKE INTELLIGENCE</Text>
+    <SafeAreaView style={styles.shell}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1 }}
+      >
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <View style={styles.header}>
+            <View style={styles.crestRow}>
+              <Ionicons name="shield-half" size={28} color={COLORS.primary} />
+              <Text style={styles.crest}>OMNI WAKE INTELLIGENCE</Text>
             </View>
-            <LangToggle compact />
+            <LangToggle />
           </View>
 
-          {/* Hero */}
-          <View style={styles.hero}>
-            <Image source={{ uri: GOLD_SEAL }} style={styles.seal} />
-            <Text style={styles.classifiedTag}>
-              ⬢ CLASSIFIED • TIER-1 IDENTITY
-            </Text>
-            <Text style={styles.title} testID="welcome-title">
-              {t("welcomeTitle", lang)}
-            </Text>
-            <Text style={styles.body}>{t("welcomeBody", lang)}</Text>
-          </View>
+          <Text style={styles.tag}>{t("onbTag", lang)}</Text>
+          <Text style={styles.title}>{t("onbWelcome", lang)}</Text>
+          <Text style={styles.subtitle}>{t("appTagline", lang)}</Text>
+          <Text style={styles.body}>{t("onbBody", lang)}</Text>
 
-          {/* Action zone */}
-          <View style={styles.actions}>
-            <Btn
-              label={t("verifyWithIdMe", lang)}
-              onPress={() => router.push("/idme")}
-              testID="verify-idme-btn"
+          <View style={styles.card}>
+            <Text style={styles.label}>{t("onbFullName", lang)}</Text>
+            <TextInput
+              value={fullName}
+              onChangeText={setFullName}
+              style={styles.input}
+              placeholder="Operator Hatchett"
+              placeholderTextColor={COLORS.textTertiary}
+              autoCapitalize="words"
+              testID="onb-name"
             />
-            <Btn
-              label={t("alreadyVerified", lang)}
-              variant="secondary"
-              onPress={() => router.push("/(tabs)")}
-              testID="skip-verify-btn"
+            <Text style={[styles.label, { marginTop: SPACING.md }]}>{t("onbEmail", lang)}</Text>
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              style={styles.input}
+              placeholder="operator@enterprise.com"
+              placeholderTextColor={COLORS.textTertiary}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              testID="onb-email"
             />
-            <Text style={styles.whyVerify}>{t("whyVerify", lang)}</Text>
+            <View style={{ marginTop: SPACING.lg }}>
+              <Btn
+                label={submitting ? "…" : t("onbProceed", lang)}
+                onPress={authorise}
+                disabled={submitting}
+                testID="onb-authorise"
+              />
+            </View>
+            <View style={{ marginTop: SPACING.md }}>
+              <Btn
+                label={t("onbSkip", lang)}
+                onPress={skip}
+                variant="secondary"
+                testID="onb-skip"
+              />
+            </View>
           </View>
 
-          {/* Trust pillars */}
-          <View style={styles.pillars}>
-            <Pillar label="AES-256" sub="ENCRYPTION" />
-            <View style={styles.pillarDiv} />
-            <Pillar label="ID.ME" sub="VERIFIED" />
-            <View style={styles.pillarDiv} />
-            <Pillar label="FERPA" sub="ALIGNED" />
-          </View>
+          <Text style={styles.foot}>{t("ownerLine", lang)}</Text>
         </ScrollView>
-
-        <Footer />
-      </View>
-    </ImageBackground>
-  );
-}
-
-function Pillar({ label, sub }: { label: string; sub: string }) {
-  return (
-    <View style={styles.pillar}>
-      <Text style={styles.pillarLabel}>{label}</Text>
-      <Text style={styles.pillarSub}>{sub}</Text>
-    </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  loadingShell: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: SPACING.md,
-  },
-  loadingText: {
-    color: COLORS.primary,
-    fontFamily: "Courier",
-    letterSpacing: 3,
-    fontSize: 11,
-  },
-  bg: { flex: 1, backgroundColor: COLORS.background },
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(2,6,23,0.85)",
-  },
-  content: {
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.lg,
-    paddingBottom: SPACING.lg,
-    gap: SPACING.lg,
-  },
-  topBar: {
+  shell: { flex: 1, backgroundColor: COLORS.background },
+  scroll: { padding: SPACING.lg, paddingBottom: SPACING.xxl },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: SPACING.lg,
   },
-  logoRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  logoBadge: {
-    width: 34,
-    height: 34,
-    borderWidth: 1.5,
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logoBadgeTxt: {
+  crestRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  crest: {
     color: COLORS.primary,
     fontFamily: "Courier",
-    fontWeight: "900",
-    fontSize: 10,
-    letterSpacing: 1,
-  },
-  brand: {
-    color: COLORS.textPrimary,
-    fontFamily: "Courier",
-    fontWeight: "700",
-    letterSpacing: 2,
     fontSize: 12,
+    letterSpacing: 3,
+    fontWeight: "700",
   },
-  hero: {
-    marginTop: SPACING.xl,
-    alignItems: "center",
-    gap: SPACING.md,
-  },
-  seal: {
-    width: 130,
-    height: 130,
-    resizeMode: "contain",
-  },
-  classifiedTag: {
+  tag: {
     color: COLORS.primary,
     fontFamily: "Courier",
     fontSize: 10,
     letterSpacing: 3,
     fontWeight: "700",
+    marginTop: SPACING.md,
   },
   title: {
     color: COLORS.textPrimary,
     fontFamily: "Georgia",
-    fontSize: 32,
+    fontSize: 30,
     fontWeight: "700",
-    textAlign: "center",
-    lineHeight: 38,
+    marginTop: 6,
   },
-  body: {
-    color: COLORS.textSecondary,
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 22,
-    paddingHorizontal: SPACING.md,
-  },
-  actions: {
+  subtitle: { color: COLORS.primary, fontSize: 13, marginTop: 4 },
+  body: { color: COLORS.textSecondary, fontSize: 13, marginTop: SPACING.md },
+  card: {
     marginTop: SPACING.lg,
-    gap: SPACING.md,
-  },
-  whyVerify: {
-    color: COLORS.textTertiary,
-    fontSize: 11,
-    textAlign: "center",
-    fontFamily: "Courier",
-    letterSpacing: 1,
-    marginTop: SPACING.sm,
-    lineHeight: 18,
-  },
-  pillars: {
-    marginTop: SPACING.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: "rgba(15,23,42,0.6)",
-    paddingVertical: SPACING.md,
+    padding: SPACING.lg,
   },
-  pillar: { flex: 1, alignItems: "center", gap: 2 },
-  pillarDiv: {
-    width: 1,
-    height: 28,
-    backgroundColor: COLORS.border,
-  },
-  pillarLabel: {
-    color: COLORS.primary,
-    fontFamily: "Courier",
-    fontWeight: "700",
-    fontSize: 13,
-    letterSpacing: 1.5,
-  },
-  pillarSub: {
+  label: {
     color: COLORS.textTertiary,
     fontFamily: "Courier",
-    fontSize: 9,
+    fontSize: 10,
     letterSpacing: 2,
+  },
+  input: {
+    marginTop: 6,
+    color: COLORS.textPrimary,
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    fontSize: 14,
+  },
+  foot: {
+    color: COLORS.textTertiary,
+    fontSize: 10,
+    textAlign: "center",
+    marginTop: SPACING.xxl,
+    fontFamily: "Courier",
+    letterSpacing: 1.5,
   },
 });

@@ -1,46 +1,44 @@
-"""Omni Wake intelligence - Backend API
+"""Omni Wake intelligence — Backend API.
+
+Secure AI Ingestion & Strategic Thought Blueprints Platform.
 A Division of Brick Outdoor Living, Inc.
 
-High-security academic credential management.
+The Oracle AI Engine ingests Operator thoughts (text + audio metadata),
+synthesises them with Claude Sonnet 4.5 into Strategic Blueprints, and
+holds the artefacts in Secure Data Custody.
 """
-from fastapi import FastAPI, APIRouter, HTTPException, Header, Query
-from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
-import os
-import logging
-import secrets
-import hashlib
-import asyncio
-from pathlib import Path
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict
-import uuid
-from datetime import datetime, timezone, timedelta
+from __future__ import annotations
 
-from portal_catalog import (
-    CATALOG,
-    BY_ID,
-    CATEGORIES,
-    REGIONS,
-    search as catalog_search,
-)
+import json
+import logging
+import os
+import re
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from dotenv import load_dotenv
+from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi.responses import JSONResponse
+from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import BaseModel, EmailStr, Field
+from starlette.middleware.cors import CORSMiddleware
+
+from emergentintegrations.llm.chat import LlmChat, UserMessage
 from kernel import build_router as build_kernel_router, capture_backend_exception
 
-
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / ".env")
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
+mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+db = client[os.environ["DB_NAME"]]
 
 app = FastAPI(title="Omni Wake intelligence API")
 api_router = APIRouter(prefix="/api")
 
 # ====================== HELPERS ======================
-
 def utcnow_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -49,10 +47,10 @@ def gen_id(prefix: str = "") -> str:
     return f"{prefix}{uuid.uuid4().hex[:16]}"
 
 
-async def log_activity(user_id: str, action: str, detail: str = ""):
+async def log_activity(operator_id: str, action: str, detail: str = "") -> None:
     await db.activity_log.insert_one({
         "id": gen_id("act_"),
-        "user_id": user_id,
+        "operator_id": operator_id,
         "action": action,
         "detail": detail,
         "timestamp": utcnow_iso(),
@@ -60,718 +58,432 @@ async def log_activity(user_id: str, action: str, detail: str = ""):
 
 
 # ====================== MODELS ======================
-
-class UserBootstrap(BaseModel):
+class IngressBootstrap(BaseModel):
     device_id: Optional[str] = None
+    email: Optional[EmailStr] = None
+    full_name: Optional[str] = None
 
 
-class User(BaseModel):
-    user_id: str
+class Operator(BaseModel):
+    operator_id: str
     device_id: Optional[str] = None
-    id_me_verified: bool = False
-    id_me_full_name: Optional[str] = None
-    id_me_verified_at: Optional[str] = None
-    language: str = "en"
+    email: Optional[str] = None
+    full_name: Optional[str] = None
+    clearance_level: str = "TIER-1"  # TIER-1 / TIER-2 / OMEGA
+    ingress_verified: bool = False
+    ingress_verified_at: Optional[str] = None
     biometric_lock: bool = False
+    language: str = "en"
     created_at: str
 
 
-class IDMeVerifyRequest(BaseModel):
-    user_id: str
+class IngressVerifyRequest(BaseModel):
+    operator_id: str
     full_name: str
-    student_email: str
+    email: EmailStr
 
 
-class AgentStartRequest(BaseModel):
-    user_id: str
-    portal: str  # "uapb" or "csun"
-    username: str
-    password: str
+class ThoughtCapture(BaseModel):
+    operator_id: str
+    title: str = Field(min_length=1, max_length=200)
+    content: str = Field(min_length=1, max_length=20000)
+    capture_mode: str = Field(default="text", pattern=r"^(text|audio|hybrid)$")
+    audio_duration_sec: float = 0.0
+    tags: List[str] = Field(default_factory=list)
 
 
-class AgentMFARequest(BaseModel):
-    session_id: str
-    method: str  # "duo_push", "sms_code"
-    code: Optional[str] = None  # for sms
-
-
-class Document(BaseModel):
+class Thought(BaseModel):
     id: str
-    user_id: str
-    portal: str
-    portal_name: str
-    doc_type: str
+    operator_id: str
     title: str
-    student_name: str
-    gpa: str
-    credits: str
-    institution: str
-    retrieved_at: str
-    verified_watermark: bool
-    encrypted: bool = True
-    content_lines: List[str] = []
+    content: str
+    capture_mode: str
+    audio_duration_sec: float
+    tags: List[str]
+    created_at: str
+    blueprint_id: Optional[str] = None
 
 
-class ShareCreate(BaseModel):
-    user_id: str
-    document_id: str
-    expires_in_hours: int = 24
-    max_views: int = 1
-    recipient_label: Optional[str] = None
+class SynthesiseRequest(BaseModel):
+    operator_id: str
+    thought_ids: List[str] = Field(min_length=1, max_length=12)
+    objective: str = Field(default="Synthesise these thoughts into an actionable strategic blueprint.", max_length=500)
+
+
+class BlueprintSection(BaseModel):
+    heading: str
+    body: str
+
+
+class Blueprint(BaseModel):
+    id: str
+    operator_id: str
+    title: str
+    summary: str
+    sections: List[BlueprintSection]
+    action_items: List[str]
+    confidence: float
+    source_thought_ids: List[str]
+    classification: str
+    created_at: str
+    pinned: bool = False
 
 
 class SettingsUpdate(BaseModel):
-    user_id: str
+    operator_id: str
     language: Optional[str] = None
     biometric_lock: Optional[bool] = None
 
 
-# ====================== USER ======================
+# ====================== ORACLE AI ENGINE ======================
+MODEL_PROVIDER = "anthropic"
+MODEL_NAME = "claude-sonnet-4-5-20250929"
 
-@api_router.post("/users/bootstrap")
-async def bootstrap_user(payload: UserBootstrap):
-    """Create or fetch a user by device. Returns user_id for client storage."""
-    existing = None
+ORACLE_PROMPT = """You are the ORACLE — the strategic intelligence engine
+inside Omni Wake intelligence. You receive an Operator's captured thoughts
+(text and audio transcripts) and synthesise them into a Strategic Blueprint
+that an executive can act on within the hour.
+
+Return ONLY valid JSON (no prose, no fences) with EXACTLY these keys:
+
+{
+  "title": "3-7 word executive title",
+  "summary": "2-3 sentence executive summary",
+  "sections": [
+    {"heading": "section title", "body": "2-5 sentence analysis"}
+  ],
+  "action_items": ["verb-led action", "verb-led action"],
+  "confidence": 0.0 to 1.0,
+  "classification": "PUBLIC | INTERNAL | CONFIDENTIAL | OMEGA"
+}
+
+Rules:
+- 3-6 sections. Each section.body is 2-5 sentences of strategic analysis.
+- 3-7 action_items. Start each with a strong verb. Be specific.
+- Classification defaults to CONFIDENTIAL unless content suggests otherwise.
+- Confidence reflects synthesis quality given source material.
+- Never invent fields. Never add markdown. Output a single JSON object."""
+
+JSON_BLOCK_RE = re.compile(r"\{[\s\S]*\}", re.MULTILINE)
+
+
+async def synthesise_blueprint(thoughts: List[Dict[str, Any]], objective: str) -> Dict[str, Any]:
+    """Calls Claude Sonnet 4.5 to synthesise a Strategic Blueprint."""
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        return {
+            "title": "Synthesis Unavailable",
+            "summary": "LLM key not configured. Blueprint synthesis is offline.",
+            "sections": [],
+            "action_items": [],
+            "confidence": 0.0,
+            "classification": "INTERNAL",
+            "_error": "EMERGENT_LLM_KEY missing",
+        }
+
+    payload = "OBJECTIVE: " + objective + "\n\nINGESTED THOUGHTS:\n"
+    for i, t in enumerate(thoughts, 1):
+        payload += f"\n[{i}] {t.get('title','(untitled)')}\n{t.get('content','')[:3000]}\n"
+
+    try:
+        chat = LlmChat(
+            api_key=key,
+            session_id=f"oracle-{gen_id()}",
+            system_message=ORACLE_PROMPT,
+        ).with_model(MODEL_PROVIDER, MODEL_NAME)
+        raw = await chat.send_message(UserMessage(text=payload))
+    except Exception as e:  # pragma: no cover
+        logging.getLogger(__name__).exception("Oracle call failed")
+        return {
+            "title": "Synthesis Failed",
+            "summary": f"Oracle invocation failed: {type(e).__name__}",
+            "sections": [],
+            "action_items": [],
+            "confidence": 0.0,
+            "classification": "INTERNAL",
+            "_error": str(e)[:200],
+        }
+
+    text = raw if isinstance(raw, str) else str(raw)
+    match = JSON_BLOCK_RE.search(text)
+    if not match:
+        return {
+            "title": "Synthesis Malformed",
+            "summary": "Oracle returned non-JSON output.",
+            "sections": [{"heading": "Raw Output", "body": text[:600]}],
+            "action_items": [],
+            "confidence": 0.2,
+            "classification": "INTERNAL",
+        }
+    try:
+        parsed = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return {
+            "title": "Synthesis Malformed",
+            "summary": "Oracle output failed JSON parse.",
+            "sections": [],
+            "action_items": [],
+            "confidence": 0.2,
+            "classification": "INTERNAL",
+        }
+
+    classification = str(parsed.get("classification", "CONFIDENTIAL")).upper()
+    if classification not in {"PUBLIC", "INTERNAL", "CONFIDENTIAL", "OMEGA"}:
+        classification = "CONFIDENTIAL"
+    try:
+        confidence = float(parsed.get("confidence", 0.7))
+    except (TypeError, ValueError):
+        confidence = 0.7
+    confidence = max(0.0, min(1.0, confidence))
+
+    sections_in = parsed.get("sections", []) or []
+    sections_out: List[Dict[str, str]] = []
+    for s in sections_in[:6]:
+        if isinstance(s, dict) and s.get("heading") and s.get("body"):
+            sections_out.append({
+                "heading": str(s["heading"])[:120],
+                "body": str(s["body"])[:1200],
+            })
+
+    actions_in = parsed.get("action_items", []) or []
+    actions_out = [str(a)[:240] for a in actions_in if a][:7]
+
+    return {
+        "title": str(parsed.get("title", "Strategic Blueprint"))[:200],
+        "summary": str(parsed.get("summary", ""))[:600],
+        "sections": sections_out,
+        "action_items": actions_out,
+        "confidence": confidence,
+        "classification": classification,
+    }
+
+
+# ====================== ROUTES — INGRESS / OPERATORS ======================
+@api_router.post("/ingress/bootstrap", response_model=Operator)
+async def ingress_bootstrap(payload: IngressBootstrap):
+    """Idempotent operator bootstrap keyed by device_id."""
     if payload.device_id:
-        existing = await db.users.find_one(
+        existing = await db.operators.find_one(
             {"device_id": payload.device_id}, {"_id": 0}
         )
-    if existing:
-        return existing
+        if existing:
+            return existing
 
-    user = {
-        "user_id": gen_id("usr_"),
+    op_id = gen_id("op_")
+    op = {
+        "operator_id": op_id,
         "device_id": payload.device_id,
-        "id_me_verified": False,
-        "id_me_full_name": None,
-        "id_me_verified_at": None,
-        "language": "en",
+        "email": payload.email,
+        "full_name": payload.full_name,
+        "clearance_level": "TIER-1",
+        "ingress_verified": False,
+        "ingress_verified_at": None,
         "biometric_lock": False,
+        "language": "en",
         "created_at": utcnow_iso(),
     }
-    await db.users.insert_one(user.copy())
-    await log_activity(user["user_id"], "ACCOUNT_CREATED", "Device bootstrap")
-    return {k: v for k, v in user.items() if k != "_id"}
+    await db.operators.insert_one({**op, "_id": op_id})
+    await log_activity(op_id, "OPERATOR_PROVISIONED")
+    return op
 
 
-@api_router.get("/users/{user_id}")
-async def get_user(user_id: str):
-    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
-    if not user:
-        raise HTTPException(404, "User not found")
-    return user
-
-
-@api_router.post("/users/settings")
-async def update_settings(payload: SettingsUpdate):
-    update: Dict = {}
-    if payload.language is not None:
-        update["language"] = payload.language
-    if payload.biometric_lock is not None:
-        update["biometric_lock"] = payload.biometric_lock
-    if not update:
-        raise HTTPException(400, "No settings to update")
-
-    result = await db.users.update_one(
-        {"user_id": payload.user_id}, {"$set": update}
-    )
-    if result.matched_count == 0:
-        raise HTTPException(404, "User not found")
-    await log_activity(payload.user_id, "SETTINGS_UPDATED", str(update))
-    user = await db.users.find_one({"user_id": payload.user_id}, {"_id": 0})
-    return user
-
-
-# ====================== ID.ME (MOCK OIDC) ======================
-
-@api_router.post("/idme/verify")
-async def idme_verify(payload: IDMeVerifyRequest):
-    """Mock ID.me OIDC verification.
-    In production this completes the OIDC redirect flow and validates the
-    id_token with ID.me's JWKS. For now, accept verified student data
-    submitted from the client after a simulated OIDC handshake.
-    """
-    # Simulate identity check latency
-    await asyncio.sleep(0.6)
-
-    if not payload.full_name or not payload.student_email:
-        raise HTTPException(400, "Missing identity attributes")
-
-    verified_at = utcnow_iso()
-    result = await db.users.update_one(
-        {"user_id": payload.user_id},
+@api_router.post("/ingress/verify", response_model=Operator)
+async def ingress_verify(payload: IngressVerifyRequest):
+    """Secure Ingress verification — marks the operator as Tier-2 cleared."""
+    op = await db.operators.find_one({"operator_id": payload.operator_id})
+    if not op:
+        raise HTTPException(status_code=404, detail="operator not found")
+    await db.operators.update_one(
+        {"operator_id": payload.operator_id},
         {"$set": {
-            "id_me_verified": True,
-            "id_me_full_name": payload.full_name,
-            "id_me_student_email": payload.student_email,
-            "id_me_verified_at": verified_at,
+            "full_name": payload.full_name.strip()[:120],
+            "email": str(payload.email),
+            "ingress_verified": True,
+            "ingress_verified_at": utcnow_iso(),
+            "clearance_level": "TIER-2",
         }},
     )
-    if result.matched_count == 0:
-        raise HTTPException(404, "User not found")
+    await log_activity(payload.operator_id, "INGRESS_VERIFIED", payload.full_name)
+    return await db.operators.find_one({"operator_id": payload.operator_id}, {"_id": 0})
 
-    await log_activity(
-        payload.user_id,
-        "ID_ME_VERIFIED",
-        f"Identity verified for {payload.full_name}",
-    )
 
-    user = await db.users.find_one({"user_id": payload.user_id}, {"_id": 0})
-    return {
-        "status": "verified",
-        "verified_at": verified_at,
-        "user": user,
+@api_router.post("/ingress/settings", response_model=Operator)
+async def ingress_settings(payload: SettingsUpdate):
+    op = await db.operators.find_one({"operator_id": payload.operator_id})
+    if not op:
+        raise HTTPException(status_code=404, detail="operator not found")
+    update: Dict[str, Any] = {}
+    if payload.language in {"en", "es"}:
+        update["language"] = payload.language
+    if payload.biometric_lock is not None:
+        update["biometric_lock"] = bool(payload.biometric_lock)
+    if update:
+        await db.operators.update_one({"operator_id": payload.operator_id}, {"$set": update})
+        await log_activity(payload.operator_id, "SETTINGS_UPDATED", json.dumps(update))
+    return await db.operators.find_one({"operator_id": payload.operator_id}, {"_id": 0})
+
+
+# ====================== ROUTES — THOUGHT CAPTURE ======================
+@api_router.post("/thoughts", response_model=Thought)
+async def create_thought(payload: ThoughtCapture):
+    op = await db.operators.find_one({"operator_id": payload.operator_id})
+    if not op:
+        raise HTTPException(status_code=404, detail="operator not found")
+    th = {
+        "id": gen_id("th_"),
+        "operator_id": payload.operator_id,
+        "title": payload.title.strip()[:200],
+        "content": payload.content.strip()[:20000],
+        "capture_mode": payload.capture_mode,
+        "audio_duration_sec": float(payload.audio_duration_sec or 0.0),
+        "tags": [t[:30] for t in (payload.tags or [])][:8],
+        "created_at": utcnow_iso(),
+        "blueprint_id": None,
     }
+    await db.thoughts.insert_one({**th, "_id": th["id"]})
+    await log_activity(payload.operator_id, "THOUGHT_CAPTURED", th["title"])
+    return th
 
 
-# ====================== AI BROWSER AGENT ======================
+@api_router.get("/thoughts/{operator_id}")
+async def list_thoughts(operator_id: str, limit: int = 100):
+    cur = db.thoughts.find({"operator_id": operator_id}, {"_id": 0}).sort("created_at", -1).limit(max(1, min(limit, 500)))
+    items = await cur.to_list(length=500)
+    return {"items": items, "count": len(items)}
 
 
-def _portal_view(p: dict) -> dict:
-    """Public projection — never leak the transcript fixture."""
-    return {
-        "id": p["id"],
-        "name": p["name"],
-        "short": p["short"],
-        "color": p["color"],
-        "url": p["url"],
-        "mfa_method": p["mfa_method"],
-        "mascot": p["mascot"],
-        "region": p["region"],
-        "category": p["category"],
-        "accreditor": p["accreditor"],
-        "ipeds_id": p.get("ipeds_id"),
-    }
-
-
-@api_router.get("/agent/portals")
-async def list_portals():
-    """Featured portals (top 8) for the dashboard quick-pick."""
-    featured_ids = [
-        "uapb", "csun", "harvard", "ucla", "mit", "howard", "umich", "nyu",
-    ]
-    return [_portal_view(BY_ID[i]) for i in featured_ids if i in BY_ID]
-
-
-@api_router.get("/agent/portals/search")
-async def search_portals(
-    q: Optional[str] = Query(None, description="Free-text query"),
-    region: Optional[str] = Query(None, description="US | INTL"),
-    category: Optional[str] = Query(None, description="ivy_league | hbcu | ..."),
-    limit: int = Query(40, ge=1, le=200),
-):
-    """Universal Search across the catalog.
-    Mirrors the schema of NCES IPEDS so a one-time loader can lift this from
-    ~110 hand-curated rows up to the full ~6,500 accredited US institutions
-    without touching the API contract."""
-    rows = catalog_search(q, region, category, limit)
-    return {
-        "total": len(rows),
-        "results": [_portal_view(p) for p in rows],
-    }
-
-
-@api_router.get("/agent/portals/meta")
-async def portal_meta():
-    return {
-        "catalog_size": len(CATALOG),
-        "categories": CATEGORIES,
-        "regions": REGIONS,
-        "source": "IPEDS-aligned seed catalog (NCES UnitID where available)",
-    }
-
-
-@api_router.get("/agent/portal/{portal_id}")
-async def get_portal(portal_id: str):
-    p = BY_ID.get(portal_id)
-    if not p:
-        raise HTTPException(404, "Portal not found")
-    return _portal_view(p)
-
-
-@api_router.post("/agent/start")
-async def agent_start(payload: AgentStartRequest):
-    """Kick off the AI browser liaison session.
-    The agent navigates to the portal, submits creds, then waits at MFA gate.
-    """
-    portal = BY_ID.get(payload.portal)
-    if not portal:
-        raise HTTPException(400, "Unsupported portal")
-    if not payload.username or not payload.password:
-        raise HTTPException(400, "Credentials required")
-
-    user = await db.users.find_one({"user_id": payload.user_id}, {"_id": 0})
-    if not user:
-        raise HTTPException(404, "User not found")
-
-    session_id = gen_id("ses_")
-
-    await db.agent_sessions.insert_one({
-        "session_id": session_id,
-        "user_id": payload.user_id,
-        "portal": payload.portal,
-        "portal_name": portal["name"],
-        "username": payload.username,
-        "stage": "awaiting_mfa",
-        "mfa_method": portal["mfa_method"],
-        "discovery_mode": False,
-        "started_at": utcnow_iso(),
-        "steps": [
-            {"label": "Initialize secure browser", "status": "complete"},
-            {"label": f"Navigate to {portal['short']} portal", "status": "complete"},
-            {"label": "Submit credentials", "status": "complete"},
-            {"label": "Awaiting MFA approval", "status": "active"},
-            {"label": "Locate transcript page", "status": "pending"},
-            {"label": "Download unofficial transcript", "status": "pending"},
-            {"label": "Encrypt & vault document", "status": "pending"},
-        ],
-    })
-
-    await log_activity(
-        payload.user_id,
-        "AGENT_STARTED",
-        f"{portal['short']} liaison engaged",
-    )
-
-    return {
-        "session_id": session_id,
-        "stage": "awaiting_mfa",
-        "mfa_method": portal["mfa_method"],
-        "portal_name": portal["name"],
-        "portal_short": portal["short"],
-    }
-
-
-@api_router.get("/agent/session/{session_id}")
-async def get_session(session_id: str):
-    session = await db.agent_sessions.find_one(
-        {"session_id": session_id}, {"_id": 0}
-    )
-    if not session:
-        raise HTTPException(404, "Session not found")
-    return session
-
-
-@api_router.post("/agent/mfa")
-async def agent_mfa(payload: AgentMFARequest):
-    """Submit MFA result. For Duo this is the approval signal;
-    for SMS this is the entered code."""
-    session = await db.agent_sessions.find_one(
-        {"session_id": payload.session_id}, {"_id": 0}
-    )
-    if not session:
-        raise HTTPException(404, "Session not found")
-    if session["stage"] != "awaiting_mfa":
-        raise HTTPException(400, "MFA not pending")
-
-    if payload.method == "sms_code":
-        if not payload.code or len(payload.code) < 4:
-            raise HTTPException(400, "Invalid SMS code")
-
-    # Mark MFA as cleared
-    steps = session["steps"]
-    for s in steps:
-        if s["label"] == "Awaiting MFA approval":
-            s["label"] = "MFA approved"
-            s["status"] = "complete"
-
-    await db.agent_sessions.update_one(
-        {"session_id": payload.session_id},
-        {"$set": {"stage": "retrieving", "steps": steps}},
-    )
-
-    await log_activity(
-        session["user_id"],
-        "MFA_APPROVED",
-        f"{session['portal_name']} via {payload.method}",
-    )
-
-    return {"status": "ok", "stage": "retrieving"}
-
-
-@api_router.post("/agent/complete/{session_id}")
-async def agent_complete(session_id: str):
-    """Finalize retrieval. Encrypts and saves the doc to vault."""
-    session = await db.agent_sessions.find_one(
-        {"session_id": session_id}, {"_id": 0}
-    )
-    if not session:
-        raise HTTPException(404, "Session not found")
-    if session["stage"] != "retrieving":
-        raise HTTPException(400, "Session not in retrieving stage")
-
-    user = await db.users.find_one(
-        {"user_id": session["user_id"]}, {"_id": 0}
-    )
-    if not user:
-        raise HTTPException(404, "User not found")
-
-    portal = BY_ID.get(session["portal"])
-    if not portal:
-        # Discovery sessions persist their synthetic portal on the session
-        # doc so a worker restart between /start and /complete still resolves.
-        portal = session.get("synthetic_portal")
-    if not portal:
-        raise HTTPException(400, "Portal definition missing")
-    sample = portal["sample"]
-
-    student_name = user.get("id_me_full_name") or "STUDENT NAME"
-
-    doc_id = gen_id("doc_")
-    document = {
-        "id": doc_id,
-        "user_id": session["user_id"],
-        "portal": session["portal"],
-        "portal_name": portal["name"],
-        "doc_type": sample["doc_type"],
-        "title": f"{portal['short']} {sample['doc_type']}",
-        "student_name": student_name,
-        "gpa": sample["gpa"],
-        "credits": sample["credits"],
-        "institution": sample.get("institution") or portal["name"],
-        "retrieved_at": utcnow_iso(),
-        "verified_watermark": bool(user.get("id_me_verified")),
-        "encrypted": True,
-        "discovery_mode": bool(session.get("discovery_mode")),
-        "content_lines": sample["lines"],
-    }
-    await db.documents.insert_one(document.copy())
-
-    # Mark all steps complete
-    steps = session["steps"]
-    for s in steps:
-        s["status"] = "complete"
-    await db.agent_sessions.update_one(
-        {"session_id": session_id},
-        {"$set": {"stage": "complete", "steps": steps, "document_id": doc_id}},
-    )
-
-    mode_tag = "AI DISCOVERY" if session.get("discovery_mode") else "AES-256"
-    await log_activity(
-        session["user_id"],
-        "DOCUMENT_RETRIEVED",
-        f"{portal['short']} transcript secured ({mode_tag})",
-    )
-
-    return {"status": "complete", "document_id": doc_id}
-
-
-# -------- AI DISCOVERY MODE --------
-
-class DiscoveryStartRequest(BaseModel):
-    user_id: str
-    school_name: str
-    portal_url: Optional[str] = None
-    username: str
-    password: str
-
-
-@api_router.post("/agent/discovery/start")
-async def discovery_start(payload: DiscoveryStartRequest):
-    """Kick off an AI Discovery session for a school that isn't pre-mapped.
-
-    In production the agent would crawl the SSO landing page, enumerate
-    candidate links, and use an LLM to score "transcript page" matches. For
-    this MVP we expose the full UX (8-step crawl with discovery telemetry)
-    against a synthetic catalog entry the user named — clearly flagged as
-    `discovery_mode: True` everywhere it appears.
-    """
-    if not payload.school_name.strip():
-        raise HTTPException(400, "School name required")
-    if not payload.username or not payload.password:
-        raise HTTPException(400, "Credentials required")
-
-    user = await db.users.find_one({"user_id": payload.user_id}, {"_id": 0})
-    if not user:
-        raise HTTPException(404, "User not found")
-
-    # Generate a transient portal id so the rest of the pipeline still works.
-    name = payload.school_name.strip()
-    short = "".join(w[0] for w in name.split()[:3]).upper() or "DISCOVER"
-    discover_id = "dsc_" + uuid.uuid4().hex[:10]
-
-    synthetic_portal = {
-        "id": discover_id,
-        "name": name,
-        "short": short,
-        "color": "#D4AF37",
-        "url": payload.portal_url or f"https://discovery.oct/{discover_id}",
-        "mfa_method": "duo_push",
-        "mascot": "Discovery",
-        "region": "US",
-        "category": "public_flagship",
-        "accreditor": "Pending (Discovery)",
-        "ipeds_id": None,
-        "sample": {
-            "doc_type": "Unofficial Transcript",
-            "institution": name,
-            "gpa": "3.76",
-            "credits": "102",
-            "lines": [
-                "DISCOVERED VIA AI EXPLORATION",
-                "FALL 2023 — Term GPA: 3.80",
-                "GE 1001  Foundations of Inquiry         3.00  A",
-                "MATH 1100  Calculus I                    4.00  A-",
-                "ENGL 1010  Writing & Rhetoric            3.00  A",
-                "SPRING 2024 — Term GPA: 3.72",
-                "GE 2001  Civic Engagement                3.00  A",
-                "BIOL 1011  Biology I                     4.00  A-",
-                "ECON 2010  Microeconomics                3.00  A",
-                "FALL 2024 — Term GPA: 3.76",
-                "MAJ 3050  Methods Seminar                3.00  A",
-                "MAJ 3200  Advanced Topics                3.00  A-",
-                "ELEC 2200  Elective                      3.00  A",
-            ],
-        },
-    }
-
-    # Register in-process for fast lookup, and persist alongside the session
-    # so multi-worker deployments can still finalize the document later.
-    BY_ID[discover_id] = synthetic_portal
-
-    session_id = gen_id("ses_")
-    await db.agent_sessions.insert_one({
-        "session_id": session_id,
-        "user_id": payload.user_id,
-        "portal": discover_id,
-        "portal_name": name,
-        "username": payload.username,
-        "stage": "awaiting_mfa",
-        "mfa_method": "duo_push",
-        "discovery_mode": True,
-        "synthetic_portal": synthetic_portal,
-        "started_at": utcnow_iso(),
-        "steps": [
-            {"label": "Initialize secure browser", "status": "complete"},
-            {"label": f"Resolve SSO entry for {short}", "status": "complete"},
-            {"label": "AI: enumerate portal link graph", "status": "complete"},
-            {"label": "AI: score 'transcript' candidates", "status": "complete"},
-            {"label": "Submit credentials", "status": "complete"},
-            {"label": "Awaiting MFA approval", "status": "active"},
-            {"label": "Navigate to AI-selected transcript page", "status": "pending"},
-            {"label": "Download unofficial transcript", "status": "pending"},
-            {"label": "Encrypt & vault document", "status": "pending"},
-        ],
-    })
-
-    await log_activity(
-        payload.user_id,
-        "DISCOVERY_STARTED",
-        f"AI Discovery engaged for '{name}'",
-    )
-
-    return {
-        "session_id": session_id,
-        "portal_id": discover_id,
-        "stage": "awaiting_mfa",
-        "mfa_method": "duo_push",
-        "portal_name": name,
-        "portal_short": short,
-        "discovery_mode": True,
-    }
-
-
-# ====================== VAULT ======================
-
-@api_router.get("/vault/{user_id}")
-async def vault_list(user_id: str):
-    docs = await db.documents.find(
-        {"user_id": user_id}, {"_id": 0}
-    ).sort("retrieved_at", -1).to_list(500)
-    return docs
-
-
-@api_router.get("/vault/document/{document_id}")
-async def get_document(document_id: str):
-    doc = await db.documents.find_one({"id": document_id}, {"_id": 0})
+@api_router.get("/thoughts/item/{thought_id}")
+async def get_thought(thought_id: str):
+    doc = await db.thoughts.find_one({"id": thought_id}, {"_id": 0})
     if not doc:
-        raise HTTPException(404, "Document not found")
+        raise HTTPException(status_code=404, detail="thought not found")
     return doc
 
 
-@api_router.delete("/vault/document/{document_id}")
-async def delete_document(document_id: str):
-    doc = await db.documents.find_one({"id": document_id}, {"_id": 0})
-    if not doc:
-        raise HTTPException(404, "Document not found")
-    await db.documents.delete_one({"id": document_id})
-    # Also wipe related share links
-    await db.shares.delete_many({"document_id": document_id})
-    await log_activity(
-        doc["user_id"],
-        "DOCUMENT_DELETED",
-        f"{doc['title']} purged from vault",
-    )
-    return {"status": "deleted"}
+@api_router.delete("/thoughts/item/{thought_id}")
+async def delete_thought(thought_id: str):
+    res = await db.thoughts.delete_one({"id": thought_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="thought not found")
+    return {"deleted": True, "id": thought_id}
 
 
-# ====================== 1-TAP SHARE / SELF-DESTRUCT LINKS ======================
+# ====================== ROUTES — BLUEPRINT SYNTHESIS ======================
+@api_router.post("/blueprints/synthesise", response_model=Blueprint)
+async def synthesise(payload: SynthesiseRequest):
+    op = await db.operators.find_one({"operator_id": payload.operator_id})
+    if not op:
+        raise HTTPException(status_code=404, detail="operator not found")
+    cur = db.thoughts.find({"id": {"$in": payload.thought_ids}, "operator_id": payload.operator_id}, {"_id": 0})
+    thoughts = await cur.to_list(length=len(payload.thought_ids))
+    if not thoughts:
+        raise HTTPException(status_code=400, detail="no matching thoughts")
 
-@api_router.post("/share/create")
-async def create_share(payload: ShareCreate):
-    doc = await db.documents.find_one({"id": payload.document_id}, {"_id": 0})
-    if not doc:
-        raise HTTPException(404, "Document not found")
-    if doc["user_id"] != payload.user_id:
-        raise HTTPException(403, "Not your document")
-
-    token = secrets.token_urlsafe(24)
-    expires_at = datetime.now(timezone.utc) + timedelta(
-        hours=max(1, payload.expires_in_hours)
-    )
-
-    share = {
-        "id": gen_id("shr_"),
-        "token": token,
-        "user_id": payload.user_id,
-        "document_id": payload.document_id,
-        "recipient_label": payload.recipient_label or "Recruiter",
+    oracle = await synthesise_blueprint(thoughts, payload.objective)
+    bp_id = gen_id("bp_")
+    blueprint = {
+        "id": bp_id,
+        "operator_id": payload.operator_id,
+        "title": oracle["title"],
+        "summary": oracle["summary"],
+        "sections": oracle["sections"],
+        "action_items": oracle["action_items"],
+        "confidence": oracle["confidence"],
+        "classification": oracle["classification"],
+        "source_thought_ids": [t["id"] for t in thoughts],
         "created_at": utcnow_iso(),
-        "expires_at": expires_at.isoformat(),
-        "max_views": max(1, payload.max_views),
-        "views": 0,
-        "destroyed": False,
-        "view_log": [],
+        "pinned": False,
     }
-    await db.shares.insert_one(share.copy())
+    await db.blueprints.insert_one({**blueprint, "_id": bp_id})
+    # Link source thoughts to this blueprint
+    await db.thoughts.update_many(
+        {"id": {"$in": blueprint["source_thought_ids"]}},
+        {"$set": {"blueprint_id": bp_id}},
+    )
     await log_activity(
-        payload.user_id,
-        "SHARE_CREATED",
-        f"{doc['title']} → {share['recipient_label']} "
-        f"(expires {payload.expires_in_hours}h, {share['max_views']} views)",
+        payload.operator_id,
+        "BLUEPRINT_SYNTHESISED",
+        f"{len(thoughts)} thoughts → {blueprint['title']}",
     )
-
-    return {
-        "share_id": share["id"],
-        "token": token,
-        "expires_at": share["expires_at"],
-        "max_views": share["max_views"],
-    }
+    return blueprint
 
 
-@api_router.get("/share/list/{user_id}")
-async def list_shares(user_id: str):
-    shares = await db.shares.find(
-        {"user_id": user_id}, {"_id": 0}
-    ).sort("created_at", -1).to_list(500)
-    return shares
+@api_router.get("/blueprints/{operator_id}")
+async def list_blueprints(operator_id: str):
+    cur = db.blueprints.find({"operator_id": operator_id}, {"_id": 0}).sort("created_at", -1).limit(200)
+    items = await cur.to_list(length=200)
+    return {"items": items, "count": len(items)}
 
 
-@api_router.get("/share/view/{token}")
-async def view_share(token: str, viewer_ip: Optional[str] = Header(None, alias="X-Viewer-IP")):
-    """Public endpoint. Each call consumes one view. Self-destructs when
-    max_views reached or when expired."""
-    share = await db.shares.find_one({"token": token}, {"_id": 0})
-    if not share:
-        raise HTTPException(404, "Link not found or destroyed")
-    if share.get("destroyed"):
-        raise HTTPException(410, "This link has self-destructed")
-
-    # Expiration check
-    expires = datetime.fromisoformat(share["expires_at"])
-    now = datetime.now(timezone.utc)
-    if expires.tzinfo is None:
-        expires = expires.replace(tzinfo=timezone.utc)
-    if now >= expires:
-        await db.shares.update_one(
-            {"token": token}, {"$set": {"destroyed": True}}
-        )
-        raise HTTPException(410, "This link has expired")
-
-    # Views check (after the current view)
-    new_views = share["views"] + 1
-    destroyed = new_views >= share["max_views"]
-
-    view_log_entry = {"ts": utcnow_iso(), "ip": viewer_ip or "unknown"}
-    await db.shares.update_one(
-        {"token": token},
-        {
-            "$set": {"views": new_views, "destroyed": destroyed},
-            "$push": {"view_log": view_log_entry},
-        },
-    )
-
-    doc = await db.documents.find_one(
-        {"id": share["document_id"]}, {"_id": 0}
-    )
+@api_router.get("/blueprints/item/{blueprint_id}")
+async def get_blueprint(blueprint_id: str):
+    doc = await db.blueprints.find_one({"id": blueprint_id}, {"_id": 0})
     if not doc:
-        raise HTTPException(404, "Document not found")
+        raise HTTPException(status_code=404, detail="blueprint not found")
+    return doc
 
-    await log_activity(
-        share["user_id"],
-        "SHARE_VIEWED",
-        f"{doc['title']} viewed by {share['recipient_label']} "
-        f"({new_views}/{share['max_views']})",
-    )
 
+@api_router.post("/blueprints/item/{blueprint_id}/pin")
+async def toggle_pin(blueprint_id: str):
+    doc = await db.blueprints.find_one({"id": blueprint_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="blueprint not found")
+    pinned = not doc.get("pinned", False)
+    await db.blueprints.update_one({"id": blueprint_id}, {"$set": {"pinned": pinned}})
+    return {"id": blueprint_id, "pinned": pinned}
+
+
+@api_router.delete("/blueprints/item/{blueprint_id}")
+async def delete_blueprint(blueprint_id: str):
+    res = await db.blueprints.delete_one({"id": blueprint_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="blueprint not found")
+    return {"deleted": True, "id": blueprint_id}
+
+
+# ====================== ROUTES — SECURE DATA CUSTODY ======================
+@api_router.get("/custody/dashboard/{operator_id}")
+async def custody_dashboard(operator_id: str):
+    op = await db.operators.find_one({"operator_id": operator_id}, {"_id": 0})
+    if not op:
+        raise HTTPException(status_code=404, detail="operator not found")
+    thought_count = await db.thoughts.count_documents({"operator_id": operator_id})
+    blueprint_count = await db.blueprints.count_documents({"operator_id": operator_id})
+    pinned = await db.blueprints.count_documents({"operator_id": operator_id, "pinned": True})
+    by_classification = {"PUBLIC": 0, "INTERNAL": 0, "CONFIDENTIAL": 0, "OMEGA": 0}
+    async for bp in db.blueprints.find({"operator_id": operator_id}, {"classification": 1, "_id": 0}):
+        c = bp.get("classification")
+        if c in by_classification:
+            by_classification[c] += 1
+    activity_cur = db.activity_log.find(
+        {"operator_id": operator_id}, {"_id": 0}
+    ).sort("timestamp", -1).limit(20)
+    activity = await activity_cur.to_list(length=20)
     return {
-        "document": doc,
-        "share": {
-            "recipient_label": share["recipient_label"],
-            "views": new_views,
-            "max_views": share["max_views"],
-            "expires_at": share["expires_at"],
-            "destroyed_after_this_view": destroyed,
+        "operator": op,
+        "counters": {
+            "thoughts": thought_count,
+            "blueprints": blueprint_count,
+            "pinned": pinned,
+        },
+        "by_classification": by_classification,
+        "activity": activity,
+        "security": {
+            "encryption": "AES-256-GCM",
+            "enclave": "Secure Enclave",
+            "compliance": ["SOC 2", "GDPR", "OMEGA-Tier"],
         },
     }
 
 
-@api_router.delete("/share/{share_id}")
-async def revoke_share(share_id: str):
-    share = await db.shares.find_one({"id": share_id}, {"_id": 0})
-    if not share:
-        raise HTTPException(404, "Share not found")
-    await db.shares.update_one(
-        {"id": share_id}, {"$set": {"destroyed": True}}
-    )
-    await log_activity(
-        share["user_id"],
-        "SHARE_REVOKED",
-        f"Manual self-destruct of link to {share['recipient_label']}",
-    )
-    return {"status": "destroyed"}
-
-
-# ====================== SECURITY & TRUST DASHBOARD ======================
-
-@api_router.get("/security/dashboard/{user_id}")
-async def security_dashboard(user_id: str):
-    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
-    if not user:
-        raise HTTPException(404, "User not found")
-
-    doc_count = await db.documents.count_documents({"user_id": user_id})
-    share_count = await db.shares.count_documents({"user_id": user_id})
-    active_shares = await db.shares.count_documents(
-        {"user_id": user_id, "destroyed": False}
-    )
-
-    recent = await db.activity_log.find(
-        {"user_id": user_id}, {"_id": 0}
-    ).sort("timestamp", -1).to_list(20)
-
-    return {
-        "encryption": "AES-256-GCM",
-        "key_storage": "Device Secure Enclave",
-        "id_me_verified": bool(user.get("id_me_verified")),
-        "id_me_verified_at": user.get("id_me_verified_at"),
-        "biometric_lock": bool(user.get("biometric_lock")),
-        "stats": {
-            "documents_vaulted": doc_count,
-            "shares_created": share_count,
-            "active_links": active_shares,
-        },
-        "recent_activity": recent,
-        "compliance": ["FERPA Aligned", "SOC 2 Type II", "AES-256-GCM"],
-    }
-
-
+# ====================== ROOT ======================
 @api_router.get("/")
 async def root():
     return {
         "service": "Omni Wake intelligence",
         "owner": "A Division of Brick Outdoor Living, Inc.",
         "status": "operational",
+        "engine": "Oracle AI (Claude Sonnet 4.5)",
     }
 
 
@@ -787,12 +499,7 @@ app.include_router(api_router)
 
 @app.exception_handler(Exception)
 async def evolutionary_kernel_handler(request, exc):
-    """Catches any uncaught backend exception, persists it via the
-    Evolutionary Kernel, and returns a sanitized 500 to the client."""
-    from fastapi.responses import JSONResponse
-    from fastapi.exceptions import HTTPException as _HTTPExc
-    if isinstance(exc, _HTTPExc):
-        # Don't swallow intentional HTTPExceptions.
+    if isinstance(exc, HTTPException):
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     try:
         await capture_backend_exception(request, exc, db)
@@ -814,25 +521,24 @@ app.add_middleware(
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
 
 @app.on_event("startup")
-async def startup():
-    await db.users.create_index("user_id", unique=True)
-    await db.users.create_index("device_id")
-    await db.documents.create_index("user_id")
-    await db.documents.create_index("id", unique=True)
-    await db.shares.create_index("token", unique=True)
-    await db.shares.create_index("user_id")
-    await db.activity_log.create_index("user_id")
+async def startup() -> None:
+    await db.operators.create_index("operator_id", unique=True)
+    await db.operators.create_index("device_id")
+    await db.thoughts.create_index("operator_id")
+    await db.thoughts.create_index("id", unique=True)
+    await db.blueprints.create_index("operator_id")
+    await db.blueprints.create_index("id", unique=True)
+    await db.activity_log.create_index("operator_id")
     await db.error_reports.create_index("created_at")
-    await db.error_reports.create_index("user_id")
     logger.info("Omni Wake intelligence backend online.")
 
 
 @app.on_event("shutdown")
-async def shutdown_db_client():
+async def shutdown_db_client() -> None:
     client.close()
