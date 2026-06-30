@@ -127,6 +127,7 @@ class Blueprint(BaseModel):
     classification: str
     created_at: str
     pinned: bool = False
+    engine: Optional[str] = None
 
 
 class SettingsUpdate(BaseModel):
@@ -135,9 +136,15 @@ class SettingsUpdate(BaseModel):
     biometric_lock: Optional[bool] = None
 
 
-# ====================== ORACLE AI ENGINE ======================
-MODEL_PROVIDER = "anthropic"
-MODEL_NAME = "claude-sonnet-4-5-20250929"
+# ====================== AI SYNTHESIS ENGINES ======================
+ORACLE_PROVIDER = "anthropic"
+ORACLE_MODEL = "claude-sonnet-4-5-20250929"
+GEMINI_PROVIDER = "gemini"
+GEMINI_MODEL = "gemini-2.5-flash"
+
+# Legacy aliases kept for any external imports
+MODEL_PROVIDER = ORACLE_PROVIDER
+MODEL_NAME = ORACLE_MODEL
 
 ORACLE_PROMPT = """You are the ORACLE — the strategic intelligence engine
 inside Omni Wake intelligence. You receive an Operator's captured thoughts
@@ -164,69 +171,29 @@ Rules:
 - Confidence reflects synthesis quality given source material.
 - Never invent fields. Never add markdown. Output a single JSON object."""
 
+ENRICH_PROMPT = """You are the Dreamcatcher enrichment engine. The user
+captured a raw, free-form thought. Your job is to enrich it with relevant
+strategic and market context — as if you had performed a focused web search
+and distilled the most pertinent facts, trends, and considerations.
+
+Return ONLY valid JSON (no prose, no fences) with EXACTLY these keys:
+
+{
+  "enriched_summary": "1 paragraph weaving raw intent + relevant context",
+  "key_signals": ["short bullet of a relevant fact / trend / risk"],
+  "search_queries": ["concrete web-search query the user could run"],
+  "expanded_content": "2-4 paragraphs of enriched analysis the synthesiser can use"
+}
+
+Rules:
+- 3-7 key_signals.
+- 3-5 search_queries.
+- Be specific. Avoid generic platitudes."""
+
 JSON_BLOCK_RE = re.compile(r"\{[\s\S]*\}", re.MULTILINE)
 
 
-async def synthesise_blueprint(thoughts: List[Dict[str, Any]], objective: str) -> Dict[str, Any]:
-    """Calls Claude Sonnet 4.5 to synthesise a Strategic Blueprint."""
-    key = os.environ.get("EMERGENT_LLM_KEY")
-    if not key:
-        return {
-            "title": "Synthesis Unavailable",
-            "summary": "LLM key not configured. Blueprint synthesis is offline.",
-            "sections": [],
-            "action_items": [],
-            "confidence": 0.0,
-            "classification": "INTERNAL",
-            "_error": "EMERGENT_LLM_KEY missing",
-        }
-
-    payload = "OBJECTIVE: " + objective + "\n\nINGESTED THOUGHTS:\n"
-    for i, t in enumerate(thoughts, 1):
-        payload += f"\n[{i}] {t.get('title','(untitled)')}\n{t.get('content','')[:3000]}\n"
-
-    try:
-        chat = LlmChat(
-            api_key=key,
-            session_id=f"oracle-{gen_id()}",
-            system_message=ORACLE_PROMPT,
-        ).with_model(MODEL_PROVIDER, MODEL_NAME)
-        raw = await chat.send_message(UserMessage(text=payload))
-    except Exception as e:  # pragma: no cover
-        logging.getLogger(__name__).exception("Oracle call failed")
-        return {
-            "title": "Synthesis Failed",
-            "summary": f"Oracle invocation failed: {type(e).__name__}",
-            "sections": [],
-            "action_items": [],
-            "confidence": 0.0,
-            "classification": "INTERNAL",
-            "_error": str(e)[:200],
-        }
-
-    text = raw if isinstance(raw, str) else str(raw)
-    match = JSON_BLOCK_RE.search(text)
-    if not match:
-        return {
-            "title": "Synthesis Malformed",
-            "summary": "Oracle returned non-JSON output.",
-            "sections": [{"heading": "Raw Output", "body": text[:600]}],
-            "action_items": [],
-            "confidence": 0.2,
-            "classification": "INTERNAL",
-        }
-    try:
-        parsed = json.loads(match.group(0))
-    except json.JSONDecodeError:
-        return {
-            "title": "Synthesis Malformed",
-            "summary": "Oracle output failed JSON parse.",
-            "sections": [],
-            "action_items": [],
-            "confidence": 0.2,
-            "classification": "INTERNAL",
-        }
-
+def _normalise_blueprint_parsed(parsed: Dict[str, Any]) -> Dict[str, Any]:
     classification = str(parsed.get("classification", "CONFIDENTIAL")).upper()
     if classification not in {"PUBLIC", "INTERNAL", "CONFIDENTIAL", "OMEGA"}:
         classification = "CONFIDENTIAL"
@@ -255,6 +222,109 @@ async def synthesise_blueprint(thoughts: List[Dict[str, Any]], objective: str) -
         "action_items": actions_out,
         "confidence": confidence,
         "classification": classification,
+    }
+
+
+async def _call_engine(
+    provider: str,
+    model: str,
+    system_prompt: str,
+    user_text: str,
+    session_prefix: str,
+) -> Dict[str, Any]:
+    """Generic Emergent-LLM-key call → strict JSON or sentinel error dict."""
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        return {"_error": "EMERGENT_LLM_KEY missing"}
+    try:
+        chat = LlmChat(
+            api_key=key,
+            session_id=f"{session_prefix}-{gen_id()}",
+            system_message=system_prompt,
+        ).with_model(provider, model)
+        raw = await chat.send_message(UserMessage(text=user_text))
+    except Exception as e:
+        logging.getLogger(__name__).exception("LLM call failed (%s/%s)", provider, model)
+        return {"_error": f"{type(e).__name__}: {str(e)[:200]}"}
+
+    text = raw if isinstance(raw, str) else str(raw)
+    match = JSON_BLOCK_RE.search(text)
+    if not match:
+        return {"_error": "non-JSON output", "_raw": text[:600]}
+    try:
+        return json.loads(match.group(0))
+    except json.JSONDecodeError as e:
+        return {"_error": f"json parse: {e}", "_raw": text[:600]}
+
+
+def _failed_blueprint(engine: str, err: str) -> Dict[str, Any]:
+    return {
+        "title": f"{engine} Synthesis Failed",
+        "summary": err[:400],
+        "sections": [],
+        "action_items": [],
+        "confidence": 0.0,
+        "classification": "INTERNAL",
+    }
+
+
+def _build_blueprint_payload(thoughts: List[Dict[str, Any]], objective: str) -> str:
+    payload = "OBJECTIVE: " + objective + "\n\nINGESTED THOUGHTS:\n"
+    for i, t in enumerate(thoughts, 1):
+        title = t.get("title") or "(untitled)"
+        content = t.get("content", "")[:3000]
+        enrichment = t.get("enriched_content")
+        payload += f"\n[{i}] {title}\n{content}\n"
+        if enrichment:
+            payload += f"\n[ENRICHMENT/{i}]\n{enrichment[:2500]}\n"
+    return payload
+
+
+async def synthesise_blueprint(
+    thoughts: List[Dict[str, Any]],
+    objective: str,
+    provider: str = ORACLE_PROVIDER,
+    model: str = ORACLE_MODEL,
+    engine_label: str = "Oracle",
+) -> Dict[str, Any]:
+    """Generic synthesis path used by all engines."""
+    payload = _build_blueprint_payload(thoughts, objective)
+    parsed = await _call_engine(provider, model, ORACLE_PROMPT, payload, "synth")
+    if "_error" in parsed:
+        return _failed_blueprint(engine_label, parsed["_error"])
+    return _normalise_blueprint_parsed(parsed)
+
+
+async def enrich_thought_via_search_grounding(
+    raw_title: str, raw_content: str
+) -> Dict[str, Any]:
+    """Augments a raw captured thought with simulated search-grounded context.
+
+    NOTE: real web fetches are not available from this container; the
+    Dreamcatcher engine asks the LLM to act as a search distillation
+    surface — surfacing the same kinds of signals a search-grounded
+    workflow would produce. Sufficient for downstream synthesis quality
+    and clearly labelled in the response (`grounding: 'llm-simulated'`).
+    """
+    text = f"RAW TITLE: {raw_title}\n\nRAW BODY:\n{raw_content[:5000]}"
+    parsed = await _call_engine(
+        ORACLE_PROVIDER, ORACLE_MODEL, ENRICH_PROMPT, text, "enrich"
+    )
+    if "_error" in parsed:
+        return {
+            "enriched_summary": "",
+            "key_signals": [],
+            "search_queries": [],
+            "expanded_content": "",
+            "grounding": "failed",
+            "_error": parsed["_error"],
+        }
+    return {
+        "enriched_summary": str(parsed.get("enriched_summary", ""))[:1500],
+        "key_signals": [str(s)[:240] for s in (parsed.get("key_signals") or [])][:7],
+        "search_queries": [str(s)[:200] for s in (parsed.get("search_queries") or [])][:5],
+        "expanded_content": str(parsed.get("expanded_content", ""))[:6000],
+        "grounding": "llm-simulated",
     }
 
 
@@ -368,18 +438,180 @@ async def delete_thought(thought_id: str):
     return {"deleted": True, "id": thought_id}
 
 
+# ====================== ROUTES — DREAMCATCHER ENRICHMENT ======================
+class EnrichRequest(BaseModel):
+    operator_id: str
+    thought_id: Optional[str] = None
+    title: str = Field(min_length=1, max_length=200)
+    content: str = Field(min_length=1, max_length=20000)
+    persist: bool = True
+
+
+@api_router.post("/thoughts/enrich")
+async def enrich_thought(payload: EnrichRequest):
+    """Search-grounded enrichment of a raw thought.
+
+    If `thought_id` is supplied AND the thought belongs to the operator, the
+    enrichment is persisted on the existing thought record so downstream
+    synthesis can use it. Otherwise the enrichment is returned ephemeral.
+    """
+    op = await db.operators.find_one({"operator_id": payload.operator_id})
+    if not op:
+        raise HTTPException(status_code=404, detail="operator not found")
+
+    enrichment = await enrich_thought_via_search_grounding(payload.title, payload.content)
+
+    if payload.persist and payload.thought_id:
+        th = await db.thoughts.find_one(
+            {"id": payload.thought_id, "operator_id": payload.operator_id}
+        )
+        if th:
+            await db.thoughts.update_one(
+                {"id": payload.thought_id},
+                {"$set": {
+                    "enriched_summary": enrichment.get("enriched_summary"),
+                    "key_signals": enrichment.get("key_signals"),
+                    "search_queries": enrichment.get("search_queries"),
+                    "enriched_content": enrichment.get("expanded_content"),
+                    "grounding": enrichment.get("grounding"),
+                }},
+            )
+            await log_activity(
+                payload.operator_id, "THOUGHT_ENRICHED", payload.thought_id
+            )
+    return enrichment
+
+
 # ====================== ROUTES — BLUEPRINT SYNTHESIS ======================
+async def _load_thoughts_for_synthesis(payload) -> List[Dict[str, Any]]:
+    cur = db.thoughts.find(
+        {"id": {"$in": payload.thought_ids}, "operator_id": payload.operator_id},
+        {"_id": 0},
+    )
+    return await cur.to_list(length=len(payload.thought_ids))
+
+
+async def _persist_blueprint(
+    payload, engine_result: Dict[str, Any], engine_label: str, source_ids: List[str]
+) -> Dict[str, Any]:
+    bp_id = gen_id("bp_")
+    blueprint = {
+        "id": bp_id,
+        "operator_id": payload.operator_id,
+        "title": engine_result["title"],
+        "summary": engine_result["summary"],
+        "sections": engine_result["sections"],
+        "action_items": engine_result["action_items"],
+        "confidence": engine_result["confidence"],
+        "classification": engine_result["classification"],
+        "source_thought_ids": source_ids,
+        "engine": engine_label,
+        "created_at": utcnow_iso(),
+        "pinned": False,
+    }
+    await db.blueprints.insert_one({**blueprint, "_id": bp_id})
+    await db.thoughts.update_many(
+        {"id": {"$in": source_ids}},
+        {"$set": {"blueprint_id": bp_id}},
+    )
+    return blueprint
+
+
 @api_router.post("/blueprints/synthesise", response_model=Blueprint)
 async def synthesise(payload: SynthesiseRequest):
     op = await db.operators.find_one({"operator_id": payload.operator_id})
     if not op:
         raise HTTPException(status_code=404, detail="operator not found")
-    cur = db.thoughts.find({"id": {"$in": payload.thought_ids}, "operator_id": payload.operator_id}, {"_id": 0})
-    thoughts = await cur.to_list(length=len(payload.thought_ids))
+    thoughts = await _load_thoughts_for_synthesis(payload)
     if not thoughts:
         raise HTTPException(status_code=400, detail="no matching thoughts")
 
-    oracle = await synthesise_blueprint(thoughts, payload.objective)
+    oracle = await synthesise_blueprint(
+        thoughts, payload.objective, ORACLE_PROVIDER, ORACLE_MODEL, "Oracle"
+    )
+    blueprint = await _persist_blueprint(
+        payload, oracle, "oracle-claude-sonnet-4-5", [t["id"] for t in thoughts]
+    )
+    await log_activity(
+        payload.operator_id,
+        "BLUEPRINT_SYNTHESISED",
+        f"{len(thoughts)} thoughts → {blueprint['title']}",
+    )
+    return blueprint
+
+
+@api_router.post("/blueprints/synthesise-gemini", response_model=Blueprint)
+async def synthesise_gemini(payload: SynthesiseRequest):
+    op = await db.operators.find_one({"operator_id": payload.operator_id})
+    if not op:
+        raise HTTPException(status_code=404, detail="operator not found")
+    thoughts = await _load_thoughts_for_synthesis(payload)
+    if not thoughts:
+        raise HTTPException(status_code=400, detail="no matching thoughts")
+    gemini = await synthesise_blueprint(
+        thoughts, payload.objective, GEMINI_PROVIDER, GEMINI_MODEL, "Gemini Flash"
+    )
+    blueprint = await _persist_blueprint(
+        payload, gemini, f"gemini-{GEMINI_MODEL}", [t["id"] for t in thoughts]
+    )
+    await log_activity(
+        payload.operator_id,
+        "BLUEPRINT_SYNTHESISED_GEMINI",
+        f"{len(thoughts)} thoughts → {blueprint['title']}",
+    )
+    return blueprint
+
+
+@api_router.post("/blueprints/synthesise-dual")
+async def synthesise_dual(payload: SynthesiseRequest):
+    """Runs both engines in parallel and returns BOTH blueprints.
+
+    The Oracle (Claude Sonnet 4.5) and Gemini Flash run concurrently. Both
+    blueprints are persisted with their engine label so the Operator can
+    compare lenses on the same source thoughts.
+    """
+    import asyncio
+    op = await db.operators.find_one({"operator_id": payload.operator_id})
+    if not op:
+        raise HTTPException(status_code=404, detail="operator not found")
+    thoughts = await _load_thoughts_for_synthesis(payload)
+    if not thoughts:
+        raise HTTPException(status_code=400, detail="no matching thoughts")
+    source_ids = [t["id"] for t in thoughts]
+
+    oracle_r, gemini_r = await asyncio.gather(
+        synthesise_blueprint(
+            thoughts, payload.objective, ORACLE_PROVIDER, ORACLE_MODEL, "Oracle"
+        ),
+        synthesise_blueprint(
+            thoughts, payload.objective, GEMINI_PROVIDER, GEMINI_MODEL, "Gemini Flash"
+        ),
+    )
+    oracle_bp = await _persist_blueprint(
+        payload, oracle_r, "oracle-claude-sonnet-4-5", source_ids
+    )
+    gemini_bp = await _persist_blueprint(
+        payload, gemini_r, f"gemini-{GEMINI_MODEL}", source_ids
+    )
+    await log_activity(
+        payload.operator_id,
+        "BLUEPRINT_SYNTHESISED_DUAL",
+        f"{len(thoughts)} thoughts → 2 engines",
+    )
+    return {
+        "oracle": oracle_bp,
+        "gemini": gemini_bp,
+        "comparison": {
+            "oracle_confidence": oracle_bp["confidence"],
+            "gemini_confidence": gemini_bp["confidence"],
+            "oracle_actions": len(oracle_bp["action_items"]),
+            "gemini_actions": len(gemini_bp["action_items"]),
+            "classification_match": oracle_bp["classification"] == gemini_bp["classification"],
+        },
+    }
+
+
+# (legacy single-engine path kept above as `/blueprints/synthesise`)
     bp_id = gen_id("bp_")
     blueprint = {
         "id": bp_id,

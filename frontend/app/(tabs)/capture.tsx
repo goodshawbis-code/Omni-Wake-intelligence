@@ -20,7 +20,14 @@ import { t } from "@/src/i18n/translations";
 import { COLORS, SPACING, RADIUS } from "@/src/theme/colors";
 import { api } from "@/src/api/client";
 
-type Mode = "text" | "audio" | "hybrid";
+type Mode = "text" | "audio" | "hybrid" | "dream";
+
+type Enrichment = {
+  enriched_summary: string;
+  key_signals: string[];
+  search_queries: string[];
+  grounding: string;
+};
 
 export default function Capture() {
   const { operator, lang } = useApp();
@@ -31,6 +38,8 @@ export default function Capture() {
   const [recording, setRecording] = useState(false);
   const [recSec, setRecSec] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [enrichment, setEnrichment] = useState<Enrichment | null>(null);
+  const [enriching, setEnriching] = useState(false);
   const recTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   function toggleRecord() {
@@ -63,7 +72,7 @@ export default function Capture() {
         operator_id: operator.operator_id,
         title: title.trim(),
         content: body.trim(),
-        capture_mode: mode,
+        capture_mode: mode === "dream" ? "hybrid" : mode,
         audio_duration_sec: recSec,
         tags: tags
           .split(",")
@@ -74,12 +83,35 @@ export default function Capture() {
       setBody("");
       setTags("");
       setRecSec(0);
+      setEnrichment(null);
       setMode("text");
       Alert.alert("Ingested", t("captureSuccess", lang));
     } catch (e) {
       Alert.alert("Ingest failed", String(e).slice(0, 200));
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function enrich() {
+    if (!operator) return;
+    if (!title.trim() || !body.trim()) {
+      Alert.alert("Missing fields", "Title and body are required before enrichment.");
+      return;
+    }
+    setEnriching(true);
+    try {
+      const res = await api.post<Enrichment>("/thoughts/enrich", {
+        operator_id: operator.operator_id,
+        title: title.trim(),
+        content: body.trim(),
+        persist: false,
+      });
+      if (res) setEnrichment(res);
+    } catch (e) {
+      Alert.alert("Enrichment failed", String(e).slice(0, 200));
+    } finally {
+      setEnriching(false);
     }
   }
 
@@ -99,21 +131,29 @@ export default function Capture() {
           <Text style={styles.subtitle}>{t("captureSubtitle", lang)}</Text>
 
           <View style={styles.modeRow}>
-            {(["text", "audio", "hybrid"] as Mode[]).map((m) => (
+            {(["text", "audio", "hybrid", "dream"] as Mode[]).map((m) => (
               <Pressable
                 key={m}
                 onPress={() => setMode(m)}
-                style={[styles.modePill, mode === m && styles.modePillActive]}
+                style={[styles.modePill, mode === m && styles.modePillActive, m === "dream" && mode === m && styles.modePillDream]}
                 testID={`capture-mode-${m}`}
               >
                 <Text style={[styles.modePillTxt, mode === m && styles.modePillTxtActive]}>
                   {m === "text" && t("captureModeText", lang)}
                   {m === "audio" && t("captureModeAudio", lang)}
                   {m === "hybrid" && t("captureModeHybrid", lang)}
+                  {m === "dream" && t("modeDream", lang)}
                 </Text>
               </Pressable>
             ))}
           </View>
+
+          {mode === "dream" && (
+            <View style={styles.dreamBanner} testID="dreamcatcher-banner">
+              <Text style={styles.dreamTag}>{t("dreamTag", lang)}</Text>
+              <Text style={styles.dreamBody}>{t("dreamBody", lang)}</Text>
+            </View>
+          )}
 
           <View style={styles.card}>
             <Text style={styles.label}>TITLE</Text>
@@ -174,6 +214,39 @@ export default function Capture() {
                 testID="capture-submit"
               />
             </View>
+
+            <Pressable
+              onPress={enrich}
+              disabled={enriching}
+              style={[styles.enrichBtn, enriching && styles.enrichBtnBusy]}
+              testID="capture-enrich"
+            >
+              <Text style={styles.enrichTxt}>
+                {enriching ? t("enriching", lang) : t("enrichBtn", lang)}
+              </Text>
+            </Pressable>
+
+            {enrichment && (
+              <View style={styles.enrichCard} testID="enrichment-card">
+                <Text style={styles.enrichSummary}>{enrichment.enriched_summary}</Text>
+                {!!enrichment.key_signals?.length && (
+                  <>
+                    <Text style={styles.enrichLabel}>{t("enrichSignals", lang)}</Text>
+                    {enrichment.key_signals.map((s, i) => (
+                      <Text key={i} style={styles.enrichBullet}>● {s}</Text>
+                    ))}
+                  </>
+                )}
+                {!!enrichment.search_queries?.length && (
+                  <>
+                    <Text style={styles.enrichLabel}>{t("enrichQueries", lang)}</Text>
+                    {enrichment.search_queries.map((q, i) => (
+                      <Text key={i} style={styles.enrichQuery}>↳ {q}</Text>
+                    ))}
+                  </>
+                )}
+              </View>
+            )}
           </View>
 
           <Footer />
@@ -214,6 +287,10 @@ const styles = StyleSheet.create({
   modePillActive: {
     borderColor: COLORS.primary,
     backgroundColor: COLORS.primaryDim,
+  },
+  modePillDream: {
+    borderColor: COLORS.primaryHover,
+    backgroundColor: COLORS.primaryGlow,
   },
   modePillTxt: {
     color: COLORS.textTertiary,
@@ -274,4 +351,71 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   recHint: { color: COLORS.textTertiary, fontSize: 11, flex: 1 },
+  dreamBanner: {
+    marginTop: SPACING.md,
+    backgroundColor: COLORS.primaryGlow,
+    borderWidth: 1,
+    borderColor: COLORS.borderStrong,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+  },
+  dreamTag: {
+    color: COLORS.primaryHover,
+    fontFamily: "Courier",
+    fontSize: 10,
+    letterSpacing: 2,
+    fontWeight: "700",
+  },
+  dreamBody: {
+    color: COLORS.textPrimary,
+    fontSize: 12,
+    marginTop: 4,
+    fontStyle: "italic",
+  },
+  enrichBtn: {
+    marginTop: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.primaryHover,
+    paddingVertical: SPACING.md,
+    alignItems: "center",
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primaryGlow,
+  },
+  enrichBtnBusy: { opacity: 0.5 },
+  enrichTxt: {
+    color: COLORS.primaryHover,
+    fontFamily: "Courier",
+    fontSize: 11,
+    letterSpacing: 1.5,
+    fontWeight: "700",
+  },
+  enrichCard: {
+    marginTop: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surfaceMuted,
+    padding: SPACING.md,
+  },
+  enrichSummary: {
+    color: COLORS.textPrimary,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  enrichLabel: {
+    color: COLORS.primary,
+    fontFamily: "Courier",
+    fontSize: 10,
+    letterSpacing: 2,
+    fontWeight: "700",
+    marginTop: SPACING.md,
+    marginBottom: 4,
+  },
+  enrichBullet: { color: COLORS.textPrimary, fontSize: 11, marginVertical: 2 },
+  enrichQuery: {
+    color: COLORS.primaryHover,
+    fontFamily: "Courier",
+    fontSize: 11,
+    marginVertical: 2,
+  },
 });

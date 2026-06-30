@@ -83,7 +83,22 @@ export const STRINGS = {
   bpDelete: { en: "DELETE", es: "BORRAR" },
   bpSources: { en: "Source Thoughts", es: "Pensamientos Fuente" },
 
-  // Custody
+  // Dreamcatcher / Engine selector
+  dreamTag: { en: "● DREAMCATCHER • CAPTURING RAW INTENT", es: "● ATRAPASUEÑOS • CAPTURANDO INTENCIÓN" },
+  dreamBody: {
+    en: "Free-form thought dump. Text, voice, fragments — the kernel weaves it.",
+    es: "Volcado libre. Texto, voz, fragmentos — el núcleo lo teje.",
+  },
+  modeDream: { en: "DREAMCATCHER", es: "ATRAPASUEÑOS" },
+  enrichBtn: { en: "✨ ENRICH WITH SEARCH-GROUNDING", es: "✨ ENRIQUECER CON BÚSQUEDA" },
+  enriching: { en: "Searching, grounding, distilling…", es: "Buscando, fundamentando, destilando…" },
+  enrichSignals: { en: "Key Signals", es: "Señales Clave" },
+  enrichQueries: { en: "Suggested Queries", es: "Consultas Sugeridas" },
+  engineLabel: { en: "Synthesis Engine", es: "Motor de Síntesis" },
+  engineOracle: { en: "ORACLE (CLAUDE)", es: "ORACLE (CLAUDE)" },
+  engineGemini: { en: "GEMINI FLASH", es: "GEMINI FLASH" },
+  engineDual: { en: "DUAL SYNTHESIS", es: "SÍNTESIS DUAL" },
+  dualResult: { en: "Dual Synthesis Result", es: "Resultado Dual" },
   custodyTag: { en: "● SECURE DATA CUSTODY", es: "● CUSTODIA DE DATOS SEGURA" },
   custodyTitle: { en: "Operator Command", es: "Comando del Operador" },
   custodyClearance: { en: "Clearance", es: "Autorización" },

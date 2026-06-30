@@ -54,6 +54,7 @@ export default function Blueprints() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
   const [synth, setSynth] = useState(false);
+  const [engine, setEngine] = useState<"oracle" | "gemini" | "dual">("oracle");
 
   const load = useCallback(async () => {
     if (!operator) return;
@@ -88,14 +89,25 @@ export default function Blueprints() {
     if (!operator || selected.size === 0) return;
     setSynth(true);
     try {
-      const res = await api.post<Blueprint>("/blueprints/synthesise", {
-        operator_id: operator.operator_id,
-        thought_ids: Array.from(selected),
-      });
+      const path =
+        engine === "gemini"
+          ? "/blueprints/synthesise-gemini"
+          : engine === "dual"
+            ? "/blueprints/synthesise-dual"
+            : "/blueprints/synthesise";
+      const res = await api.post<Blueprint | { oracle: Blueprint; gemini: Blueprint }>(
+        path,
+        { operator_id: operator.operator_id, thought_ids: Array.from(selected) },
+      );
       if (res) {
         setSelected(new Set());
         await load();
-        router.push(`/blueprint/${res.id}`);
+        if (engine === "dual" && "oracle" in res) {
+          // Land on the Oracle blueprint detail; the Gemini one is also persisted in the gallery.
+          router.push(`/blueprint/${res.oracle.id}`);
+        } else if (res && "id" in res) {
+          router.push(`/blueprint/${res.id}`);
+        }
       }
     } catch (e) {
       Alert.alert("Synthesis failed", String(e).slice(0, 200));
@@ -159,6 +171,30 @@ export default function Blueprints() {
             })}
 
             <View style={{ marginTop: SPACING.md }}>
+              <Text style={styles.sectionLabel}>{t("engineLabel", lang)}</Text>
+              <View style={styles.engineRow}>
+                {(["oracle", "gemini", "dual"] as const).map((e) => (
+                  <Pressable
+                    key={e}
+                    onPress={() => setEngine(e)}
+                    style={[styles.engineBtn, engine === e && styles.engineBtnActive]}
+                    testID={`engine-${e}`}
+                  >
+                    <Text
+                      style={[
+                        styles.engineTxt,
+                        engine === e && styles.engineTxtActive,
+                      ]}
+                    >
+                      {e === "oracle"
+                        ? t("engineOracle", lang)
+                        : e === "gemini"
+                          ? t("engineGemini", lang)
+                          : t("engineDual", lang)}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
               <Btn
                 label={synth ? t("bpSynthInProgress", lang) : t("bpSynth", lang)}
                 onPress={synthesise}
@@ -296,6 +332,32 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   synthHint: { color: COLORS.textTertiary, fontSize: 10, marginTop: 4, textAlign: "center" },
+  engineRow: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+    marginVertical: SPACING.sm,
+  },
+  engineBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.sm,
+    alignItems: "center",
+    backgroundColor: COLORS.surfaceMuted,
+  },
+  engineBtnActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryDim,
+  },
+  engineTxt: {
+    color: COLORS.textTertiary,
+    fontFamily: "Courier",
+    fontSize: 9,
+    letterSpacing: 1.2,
+    fontWeight: "700",
+  },
+  engineTxtActive: { color: COLORS.primary },
   divider: {
     height: 1,
     backgroundColor: COLORS.border,
