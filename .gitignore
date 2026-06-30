@@ -25,3 +25,10 @@ test_reports/iteration_*.json
 .DS_Store
 .vscode/
 .idea/
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
