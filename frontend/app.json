@@ -12,8 +12,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.brickoutdoorliving.oneclicktranscript",
       "infoPlist": {
-        "NSFaceIDUsageDescription": "Unlock your encrypted Academic Vault",
-        "NSCameraUsageDescription": "Scan QR codes to verify shared transcripts",
+        "NSFaceIDUsageDescription": "Unlock your Secure Data Custody",
+        "NSCameraUsageDescription": "Scan QR codes for verified blueprints",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -50,7 +50,7 @@
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Unlock your encrypted Academic Vault"
+          "faceIDPermission": "Unlock your Secure Data Custody"
         }
       ],
       "expo-secure-store"
